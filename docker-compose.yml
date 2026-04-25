@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: prepiq
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d prepiq"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/prepiq
+      APP_SECRET: change-me-before-production
+      ACCESS_TOKEN_TTL_HOURS: 168
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      OPENROUTER_APP_URL: ${OPENROUTER_APP_URL:-https://github.com/Aashikhandelwal05/prepiq}
+      OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-PrepIQ}
+      OPENROUTER_TIMEOUT_SECONDS: ${OPENROUTER_TIMEOUT_SECONDS:-30}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health').read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
