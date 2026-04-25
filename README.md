@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/your-org/prepiq/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/prepiq/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-[![Open Source Ready](https://img.shields.io/badge/Open%20Source-GSSoC%20Ready-ff69b4.svg)](./docs/open-source/ISSUE_BACKLOG.md)
 
 PrepIQ is an open-source interview preparation workspace for students and early-career professionals. It combines profile onboarding, interview prep plan generation, mock interview feedback, progress tracking, and job application management in one full-stack project.
 

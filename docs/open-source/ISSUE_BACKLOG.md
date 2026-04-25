@@ -2,22 +2,22 @@
 
 ## 1. Add dashboard loading and empty-state skeletons
 
-- Labels: `frontend`, `good first issue`, `enhancement`, `difficulty: easy`, `gssoc`
+- Labels: `frontend`, `good first issue`, `enhancement`, `difficulty: easy`
 - Description: Add loading placeholders for the main dashboard cards and lists so contributors can improve perceived performance without changing core data flows.
 
 ## 2. Add stronger signup password policy validation
 
-- Labels: `backend`, `bug`, `security`, `difficulty: easy`, `gssoc`
+- Labels: `backend`, `bug`, `security`, `difficulty: easy`
 - Description: Expand the current password validation beyond minimum length and return clearer backend error messages for weak passwords.
 
 ## 3. Add job tracker search and status filters
 
-- Labels: `frontend`, `enhancement`, `help wanted`, `difficulty: medium`, `gssoc`
+- Labels: `frontend`, `enhancement`, `help wanted`, `difficulty: medium`
 - Description: Allow contributors to search job applications by company or role and filter the board/table by status.
 
 ## 4. Add backend tests for token tampering and expiry
 
-- Labels: `backend`, `testing`, `security`, `difficulty: medium`, `gssoc`
+- Labels: `backend`, `testing`, `security`, `difficulty: medium`
 - Description: Cover invalid signatures, expired tokens, and forbidden cross-user access cases in automated backend tests.
 
 ## 5. Add API schema examples to FastAPI endpoints
@@ -27,7 +27,7 @@
 
 ## 6. Add onboarding step validation messages
 
-- Labels: `frontend`, `bug`, `accessibility`, `difficulty: medium`, `gssoc`
+- Labels: `frontend`, `bug`, `accessibility`, `difficulty: medium`
 - Description: Prevent incomplete onboarding submissions and add user-facing guidance for missing required fields.
 
 ## 7. Add sample data seeding script for local demos
@@ -37,7 +37,7 @@
 
 ## 8. Add architecture diagram and request flow doc
 
-- Labels: `documentation`, `good first issue`, `difficulty: easy`, `gssoc`
+- Labels: `documentation`, `good first issue`, `difficulty: easy`
 - Description: Document how the React frontend, FastAPI backend, storage layer, and optional OpenRouter integration interact.
 
 ## 9. Add linked prep recommendations in the job tracker
@@ -67,7 +67,7 @@
 
 ## 14. Add Playwright smoke test for auth and dashboard
 
-- Labels: `testing`, `frontend`, `devops`, `difficulty: medium`, `gssoc`
+- Labels: `testing`, `frontend`, `devops`, `difficulty: medium`
 - Description: Use the existing Playwright setup to cover the login flow and a basic dashboard render.
 
 ## 15. Add Docker docs for local troubleshooting

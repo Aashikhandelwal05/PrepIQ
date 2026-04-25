@@ -20,5 +20,4 @@
 | `difficulty: easy` | `#C5DEF5` | Suitable for newcomers |
 | `difficulty: medium` | `#FCE94F` | Requires some project context |
 | `difficulty: hard` | `#D4C5F9` | Cross-cutting or architecture-heavy work |
-| `gssoc` | `#FF69B4` | Track tasks promoted for GSSoC |
 | `mentor-needed` | `#E99695` | A maintainer should guide the contributor closely |
