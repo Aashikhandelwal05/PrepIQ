@@ -98,7 +98,74 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
     }
   };
 
+  /**
+   * Per-step validation. Returns an error message when the current
+   * step has missing/empty required fields, or null when the step is
+   * complete and the user should be allowed to advance. See
+   * https://github.com/Aashikhandelwan05/PrepIQ/issues/5.
+   *
+   * Step 4 (Interview Fears) is intentionally optional — the
+   * checkboxes + notes are signal, not a gate.
+   */
+  const validateStep = (currentStep: number): string | null => {
+    switch (currentStep) {
+      case 0:
+        if (targetRoles.length === 0)
+          return "Add at least one target job role to continue.";
+        if (dreamCompanies.length === 0)
+          return "Add at least one dream company to continue.";
+        return null;
+      case 1:
+        if (!degree.trim())
+          return "Please enter your degree.";
+        if (!institution.trim())
+          return "Please enter your institution.";
+        if (!graduationYear.trim())
+          return "Please enter your graduation year.";
+        return null;
+      case 2: {
+        const hasFilledEntry = workHistory.some(
+          (entry) => entry.jobTitle.trim() !== "" && entry.company.trim() !== "",
+        );
+        if (!hasFilledEntry)
+          return "Add at least one work entry with both job title and company.";
+        return null;
+      }
+      case 3:
+        if (technicalSkills.length === 0 && softSkills.length === 0)
+          return "Add at least one technical or soft skill to continue.";
+        return null;
+      default:
+        return null;
+    }
+  };
+
+  const handleNext = () => {
+    const error = validateStep(step);
+    if (error) {
+      toast({
+        title: "Step incomplete",
+        description: error,
+        variant: "destructive",
+      });
+      return;
+    }
+    setStep(step + 1);
+  };
+
+  const stepError = validateStep(step);
+
   const handleComplete = async () => {
+    const finalStepError = validateStep(step);
+    if (finalStepError) {
+      toast({
+        title: "Step incomplete",
+        description: finalStepError,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const profile: CareerProfile = {
       userId: user.id,
       fullName: user.name,
@@ -311,6 +378,16 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
           </AnimatePresence>
         </div>
 
+        {stepError && (
+          <p
+            role="alert"
+            aria-live="polite"
+            className="text-destructive text-sm mt-3"
+          >
+            {stepError}
+          </p>
+        )}
+
         <div className="flex justify-between mt-6">
           <Button
             variant="outline"
@@ -322,7 +399,9 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
 
           {step < STEPS.length - 1 ? (
             <Button
-              onClick={() => setStep(step + 1)}
+              onClick={handleNext}
+              disabled={stepError !== null}
+              title={stepError ?? undefined}
               className="gradient-primary text-primary-foreground"
             >
               Next <ChevronRight className="w-4 h-4 ml-1" />
@@ -330,6 +409,8 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
           ) : (
             <Button
               onClick={handleComplete}
+              disabled={stepError !== null}
+              title={stepError ?? undefined}
               className="gradient-primary text-primary-foreground"
             >
               <Check className="w-4 h-4 mr-1" /> Complete
