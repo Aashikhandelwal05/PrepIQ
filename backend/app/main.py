@@ -20,6 +20,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
+from backend.app.ml import extract_skills, compute_match_score, analyze_confidence
+
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/prepiq")
 APP_SECRET = os.getenv("APP_SECRET", "change-me-in-production")
@@ -88,6 +90,8 @@ class InterviewSessionTable(Base):
     readiness_score: Mapped[int] = mapped_column(Integer)
     question_bank: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     roadmap: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    extracted_skills: Mapped[list[str]] = mapped_column(JSON, default=list)
+    ml_match_score: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -268,6 +272,8 @@ class InterviewSession(BaseModel):
     readinessScore: int
     questionBank: list[QuestionItem]
     roadmap: list[RoadmapDay]
+    extractedSkills: list[str] = []
+    mlMatchScore: int = 0
     createdAt: str
 
 
@@ -278,11 +284,19 @@ class CreateInterviewSessionRequest(BaseModel):
     resumeText: str = ""
 
 
+class ConfidenceAnalysis(BaseModel):
+    confidenceScore: int = 0
+    sentiment: str = "neutral"
+    specificity: int = 0
+    wordCount: int = 0
+
+
 class MockFeedback(BaseModel):
     strengths: list[str]
     missing: list[str]
     modelAnswer: str
     oneLineVerdict: str
+    confidenceAnalysis: ConfidenceAnalysis = ConfidenceAnalysis()
 
 
 class OpenRouterError(RuntimeError):
@@ -389,6 +403,8 @@ def session_from_table(session: InterviewSessionTable) -> InterviewSession:
         readinessScore=session.readiness_score,
         questionBank=session.question_bank,
         roadmap=session.roadmap,
+        extractedSkills=session.extracted_skills or [],
+        mlMatchScore=session.ml_match_score or 0,
         createdAt=session.created_at.isoformat(),
     )
 
@@ -506,8 +522,10 @@ def generate_session_payload(job_title: str, company: str, jd_text: str, resume_
     except (OpenRouterError, KeyError, TypeError, ValueError):
         pass
 
+    # --- ML: compute match score instead of random ---
+    readiness = compute_match_score(resume_text, jd_text)
+
     seed = f"{job_title}|{company}|{jd_text}|{resume_text}"
-    readiness = stable_number(seed, 50, 89)
     gap_analysis = [
         GapItem(skill="React", have="Intermediate", need="Advanced", gapLevel="Medium"),
         GapItem(skill="System Design", have="Basic", need="Advanced", gapLevel="High"),
@@ -562,6 +580,10 @@ def evaluate_mock_attempt(question: str, answer: str) -> tuple[int, MockFeedback
     except (OpenRouterError, KeyError, TypeError, ValueError):
         pass
 
+    # --- ML: analyze answer confidence ---
+    confidence_data = analyze_confidence(answer)
+    confidence = ConfidenceAnalysis(**confidence_data)
+
     base_seed = f"{question}|{answer}"
     answer_len = len(answer.strip())
     score = stable_number(base_seed, 5, 9)
@@ -586,6 +608,7 @@ def evaluate_mock_attempt(question: str, answer: str) -> tuple[int, MockFeedback
             "and connect the outcome back to the role you are targeting."
         ),
         oneLineVerdict=verdict,
+        confidenceAnalysis=confidence,
     )
 
 
@@ -762,6 +785,11 @@ def create_session(
     db: Session = Depends(get_db),
 ) -> InterviewSession:
     gap_analysis, readiness, question_bank, roadmap = generate_session_payload(payload.jobTitle, payload.company, payload.jdText, payload.resumeText)
+
+    # --- ML: extract skills from resume ---
+    skills = extract_skills(payload.resumeText)
+    ml_score = compute_match_score(payload.resumeText, payload.jdText)
+
     row = InterviewSessionTable(
         id=str(uuid4()),
         user_id=user_id,
@@ -773,6 +801,8 @@ def create_session(
         readiness_score=readiness,
         question_bank=[item.model_dump() for item in question_bank],
         roadmap=[item.model_dump() for item in roadmap],
+        extracted_skills=skills,
+        ml_match_score=ml_score,
         created_at=utc_now(),
     )
     db.add(row)
@@ -883,3 +913,49 @@ def update_job(
     job.updated_at = utc_now()
     db.commit()
     return job_from_table(job)
+
+
+# ---------------------------------------------------------------------------
+# ML/NLP endpoints
+# ---------------------------------------------------------------------------
+
+class ExtractSkillsRequest(BaseModel):
+    text: str
+
+
+class ExtractSkillsResponse(BaseModel):
+    skills: list[str]
+    count: int
+
+
+class MatchScoreRequest(BaseModel):
+    resumeText: str
+    jdText: str
+
+
+class MatchScoreResponse(BaseModel):
+    score: int
+    label: str
+
+
+class ConfidenceRequest(BaseModel):
+    text: str
+
+
+@app.post("/api/ml/extract-skills", response_model=ExtractSkillsResponse)
+def ml_extract_skills(payload: ExtractSkillsRequest) -> ExtractSkillsResponse:
+    skills = extract_skills(payload.text)
+    return ExtractSkillsResponse(skills=skills, count=len(skills))
+
+
+@app.post("/api/ml/match-score", response_model=MatchScoreResponse)
+def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
+    score = compute_match_score(payload.resumeText, payload.jdText)
+    label = "Strong match" if score >= 70 else "Moderate match" if score >= 50 else "Weak match"
+    return MatchScoreResponse(score=score, label=label)
+
+
+@app.post("/api/ml/analyze-confidence", response_model=ConfidenceAnalysis)
+def ml_analyze_confidence(payload: ConfidenceRequest) -> ConfidenceAnalysis:
+    result = analyze_confidence(payload.text)
+    return ConfidenceAnalysis(**result)

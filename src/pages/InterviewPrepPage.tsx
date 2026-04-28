@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, Loader2, Search } from "lucide-react";
+import { BookOpen, Loader2, Search, Brain, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -128,55 +128,129 @@ export default function InterviewPrepPage({ sessions, onAddSession }: InterviewP
           </TabsList>
 
           <TabsContent value="gap">
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
-              <h3 className="text-lg font-semibold mb-4">Skill Gap Analysis</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-3 text-muted-foreground font-medium">Skill</th>
-                      <th className="text-left py-3 text-muted-foreground font-medium">You Have</th>
-                      <th className="text-left py-3 text-muted-foreground font-medium">They Need</th>
-                      <th className="text-left py-3 text-muted-foreground font-medium">Gap Level</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeSession.gapAnalysis.map((g) => (
-                      <tr key={g.skill} className="border-b border-border/50">
-                        <td className="py-3 font-medium text-foreground">{g.skill}</td>
-                        <td className="py-3 text-muted-foreground">{g.have}</td>
-                        <td className="py-3 text-muted-foreground">{g.need}</td>
-                        <td className={`py-3 font-medium ${gapColor[g.gapLevel]}`}>{g.gapLevel}</td>
+            <div className="space-y-4">
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
+                <h3 className="text-lg font-semibold mb-4">Skill Gap Analysis</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 text-muted-foreground font-medium">Skill</th>
+                        <th className="text-left py-3 text-muted-foreground font-medium">You Have</th>
+                        <th className="text-left py-3 text-muted-foreground font-medium">They Need</th>
+                        <th className="text-left py-3 text-muted-foreground font-medium">Gap Level</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {activeSession.gapAnalysis.map((g) => (
+                        <tr key={g.skill} className="border-b border-border/50">
+                          <td className="py-3 font-medium text-foreground">{g.skill}</td>
+                          <td className="py-3 text-muted-foreground">{g.have}</td>
+                          <td className="py-3 text-muted-foreground">{g.need}</td>
+                          <td className={`py-3 font-medium ${gapColor[g.gapLevel]}`}>{g.gapLevel}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
+              {activeSession.extractedSkills && activeSession.extractedSkills.length > 0 && (
+                <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Brain className="w-4 h-4 text-primary" />
+                    <h3 className="text-sm font-semibold text-foreground">ML-Extracted Resume Skills</h3>
+                    <Badge variant="outline" className="text-xs border-primary/40 text-primary">
+                      spaCy NER
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Skills automatically detected from your resume using NLP Named Entity Recognition.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {activeSession.extractedSkills.map((skill) => (
+                      <span
+                        key={skill}
+                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="readiness">
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-card flex flex-col items-center">
-              <div className="relative w-40 h-40 mb-4">
-                <svg width="160" height="160" className="transform -rotate-90">
-                  <circle cx="80" cy="80" r="68" stroke="hsl(var(--border))" strokeWidth="8" fill="none" />
-                  <circle
-                    cx="80" cy="80" r="68"
-                    stroke={activeSession.readinessScore >= 70 ? "hsl(var(--success))" : "hsl(var(--warning))"}
-                    strokeWidth="8" fill="none" strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 68}
-                    strokeDashoffset={2 * Math.PI * 68 * (1 - activeSession.readinessScore / 100)}
-                    className="transition-all duration-1000"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-4xl font-bold text-foreground">{activeSession.readinessScore}</span>
-                  <span className="text-xs text-muted-foreground">Readiness</span>
+            <div className="space-y-4">
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-card flex flex-col items-center">
+                <div className="relative w-40 h-40 mb-4">
+                  <svg width="160" height="160" className="transform -rotate-90">
+                    <circle cx="80" cy="80" r="68" stroke="hsl(var(--border))" strokeWidth="8" fill="none" />
+                    <circle
+                      cx="80" cy="80" r="68"
+                      stroke={activeSession.readinessScore >= 70 ? "hsl(var(--success))" : "hsl(var(--warning))"}
+                      strokeWidth="8" fill="none" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 68}
+                      strokeDashoffset={2 * Math.PI * 68 * (1 - activeSession.readinessScore / 100)}
+                      className="transition-all duration-1000"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-4xl font-bold text-foreground">{activeSession.readinessScore}</span>
+                    <span className="text-xs text-muted-foreground">Readiness</span>
+                  </div>
+                </div>
+                <p className="text-center text-muted-foreground max-w-md">
+                  You're {activeSession.readinessScore >= 70 ? "well prepared" : "getting there"}! Focus on the high-gap areas in your study plan.
+                </p>
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
+                <div className="flex items-center gap-2 mb-4">
+                  <Cpu className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">ML Resume–JD Match Score</h3>
+                  <Badge variant="outline" className="text-xs border-primary/40 text-primary">
+                    TF-IDF · Cosine Similarity
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">
+                  How closely your resume text matches the job description, computed using TF-IDF vectorization and cosine similarity.
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                      <span>Match Score</span>
+                      <span className="font-medium text-foreground">{activeSession.mlMatchScore}%</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{
+                          width: `${activeSession.mlMatchScore}%`,
+                          background: activeSession.mlMatchScore >= 70
+                            ? "hsl(var(--success))"
+                            : activeSession.mlMatchScore >= 50
+                            ? "hsl(var(--warning))"
+                            : "hsl(var(--destructive))",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <span
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                      activeSession.mlMatchScore >= 70
+                        ? "bg-success/10 text-success border-success/30"
+                        : activeSession.mlMatchScore >= 50
+                        ? "bg-warning/10 text-warning border-warning/30"
+                        : "bg-destructive/10 text-destructive border-destructive/30"
+                    }`}
+                  >
+                    {activeSession.mlMatchScore >= 70 ? "Strong" : activeSession.mlMatchScore >= 50 ? "Moderate" : "Weak"}
+                  </span>
                 </div>
               </div>
-              <p className="text-center text-muted-foreground max-w-md">
-                You're {activeSession.readinessScore >= 70 ? "well prepared" : "getting there"}! Focus on the high-gap areas in your study plan.
-              </p>
             </div>
           </TabsContent>
 

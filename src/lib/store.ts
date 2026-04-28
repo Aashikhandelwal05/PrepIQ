@@ -56,6 +56,8 @@ export interface InterviewSession {
   readinessScore: number;
   questionBank: QuestionItem[];
   roadmap: RoadmapDay[];
+  extractedSkills: string[];
+  mlMatchScore: number;
   createdAt: string;
 }
 
@@ -79,6 +81,13 @@ export interface RoadmapDay {
   tasks: string[];
 }
 
+export interface ConfidenceAnalysis {
+  confidenceScore: number;
+  sentiment: string;
+  specificity: number;
+  wordCount: number;
+}
+
 export interface MockAttempt {
   id: string;
   sessionId: string;
@@ -91,6 +100,7 @@ export interface MockAttempt {
     missing: string[];
     modelAnswer: string;
     oneLineVerdict: string;
+    confidenceAnalysis: ConfidenceAnalysis;
   };
   createdAt: string;
 }

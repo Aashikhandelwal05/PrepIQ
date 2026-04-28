@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquare, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { MessageSquare, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -138,6 +138,7 @@ export default function MockInterviewPage({ sessions, attempts, onAddAttempt }: 
 
       {result && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          {/* AI Score + Strengths/Missing */}
           <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
             <div className="flex items-center gap-4 mb-4">
               <div className={`px-4 py-2 rounded-xl text-2xl font-bold border ${scoreColor(result.aiScore)}`}>
@@ -182,6 +183,102 @@ export default function MockInterviewPage({ sessions, attempts, onAddAttempt }: 
               </div>
             )}
           </div>
+
+          {/* Confidence Analysis Card (ML Feature 3 — TextBlob) */}
+          {result.aiFeedback.confidenceAnalysis && (
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Confidence Analysis</h3>
+                <Badge variant="outline" className="text-xs border-primary/40 text-primary">
+                  TextBlob · Sentiment NLP
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Analyzed using sentiment polarity, answer length, and specificity metrics.
+              </p>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Left: scores */}
+                <div className="space-y-4">
+                  {/* Confidence Score */}
+                  <div>
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                      <span>Confidence Score</span>
+                      <span className="font-medium text-foreground">
+                        {result.aiFeedback.confidenceAnalysis.confidenceScore}/100
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{
+                          width: `${result.aiFeedback.confidenceAnalysis.confidenceScore}%`,
+                          background:
+                            result.aiFeedback.confidenceAnalysis.confidenceScore >= 70
+                              ? "hsl(var(--success))"
+                              : result.aiFeedback.confidenceAnalysis.confidenceScore >= 40
+                              ? "hsl(var(--warning))"
+                              : "hsl(var(--destructive))",
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Specificity Score */}
+                  <div>
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                      <span>Specificity (metrics & numbers)</span>
+                      <span className="font-medium text-foreground">
+                        {result.aiFeedback.confidenceAnalysis.specificity}/100
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-1000"
+                        style={{ width: `${result.aiFeedback.confidenceAnalysis.specificity}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: tags */}
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground w-24 shrink-0">Sentiment</span>
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                        result.aiFeedback.confidenceAnalysis.sentiment === "positive"
+                          ? "bg-success/10 text-success border-success/30"
+                          : result.aiFeedback.confidenceAnalysis.sentiment === "negative"
+                          ? "bg-destructive/10 text-destructive border-destructive/30"
+                          : "bg-secondary text-muted-foreground border-border"
+                      }`}
+                    >
+                      {result.aiFeedback.confidenceAnalysis.sentiment.charAt(0).toUpperCase() +
+                        result.aiFeedback.confidenceAnalysis.sentiment.slice(1)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground w-24 shrink-0">Word Count</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {result.aiFeedback.confidenceAnalysis.wordCount} words
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground w-24 shrink-0">Tip</span>
+                    <span className="text-xs text-muted-foreground">
+                      {result.aiFeedback.confidenceAnalysis.wordCount < 80
+                        ? "Add more detail — aim for 100+ words"
+                        : result.aiFeedback.confidenceAnalysis.specificity < 20
+                        ? "Include numbers or metrics for impact"
+                        : "Great response depth! 🎉"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 
