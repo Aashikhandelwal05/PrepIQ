@@ -5,7 +5,7 @@ WORKDIR /app
 COPY backend/requirements.txt /app/backend/requirements.txt
 RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 RUN python -m spacy download en_core_web_sm
-RUN python -c "import textblob; textblob.download_corpora.download_all()"
+RUN python -c "import textblob; textblob.download_corpora()"
 
 COPY backend /app/backend
 
