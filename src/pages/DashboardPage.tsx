@@ -9,10 +9,19 @@ import {
   ArrowRight,
   Plus,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/StatCard";
-import { User, CareerProfile, InterviewSession, MockAttempt, JobApplication } from "@/lib/store";
+import EmptyState from "@/components/EmptyState";
+
+import {
+  User,
+  CareerProfile,
+  InterviewSession,
+  MockAttempt,
+  JobApplication,
+} from "@/lib/store";
 
 interface DashboardPageProps {
   user: User;
@@ -22,12 +31,21 @@ interface DashboardPageProps {
   jobs: JobApplication[];
 }
 
-export default function DashboardPage({ user, profile, sessions, mocks, jobs }: DashboardPageProps) {
+export default function DashboardPage({
+  user,
+  profile,
+  sessions,
+  mocks,
+  jobs,
+}: DashboardPageProps) {
   const navigate = useNavigate();
 
   const completionPercent = profile?.onboardingComplete ? 100 : 0;
+
   const avgScore = mocks.length
-    ? Math.round(mocks.reduce((s, m) => s + m.aiScore, 0) / mocks.length)
+    ? Math.round(
+        mocks.reduce((s, m) => s + m.aiScore, 0) / mocks.length
+      )
     : 0;
 
   const recentSessions = sessions.slice(-3).reverse();
@@ -52,10 +70,12 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
       >
         <div className="flex items-center gap-3">
           <Sparkles className="w-8 h-8 text-primary-foreground" />
+
           <div>
             <h1 className="text-2xl font-bold text-primary-foreground">
               Welcome back, {user.name}!
             </h1>
+
             <p className="text-primary-foreground/80 text-sm">
               Ready to ace your next interview?
             </p>
@@ -63,51 +83,101 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
         </div>
       </motion.div>
 
-      {/* Career DNA Card */}
+      {/* Career DNA */}
       {completionPercent < 100 && (
         <div className="rounded-xl bg-card border border-warning/30 p-4 flex items-center justify-between">
           <div>
-            <p className="font-medium text-foreground">Complete your Career DNA</p>
+            <p className="font-medium text-foreground">
+              Complete your Career DNA
+            </p>
+
             <p className="text-sm text-muted-foreground">
               Your profile is {completionPercent}% complete
             </p>
           </div>
-          <Button onClick={() => navigate("/onboarding")} variant="outline" className="border-warning text-warning hover:bg-warning/10">
-            Finish Profile <ArrowRight className="w-4 h-4 ml-1" />
+
+          <Button
+            onClick={() => navigate("/onboarding")}
+            variant="outline"
+            className="border-warning text-warning hover:bg-warning/10"
+          >
+            Finish Profile
+            <ArrowRight className="w-4 h-4 ml-1" />
           </Button>
         </div>
       )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={BookOpen} label="Prep Sessions" value={sessions.length} />
-        <StatCard icon={MessageSquare} label="Mock Interviews" value={mocks.length} gradient="gradient-accent" />
-        <StatCard icon={Briefcase} label="Jobs Applied" value={jobs.length} gradient="gradient-warm" />
-        <StatCard icon={TrendingUp} label="Avg Mock Score" value={`${avgScore * 10}/100`} gradient="gradient-success" />
+        <StatCard
+          icon={BookOpen}
+          label="Prep Sessions"
+          value={sessions.length}
+        />
+
+        <StatCard
+          icon={MessageSquare}
+          label="Mock Interviews"
+          value={mocks.length}
+          gradient="gradient-accent"
+        />
+
+        <StatCard
+          icon={Briefcase}
+          label="Jobs Applied"
+          value={jobs.length}
+          gradient="gradient-warm"
+        />
+
+        <StatCard
+          icon={TrendingUp}
+          label="Avg Mock Score"
+          value={`${avgScore}%`}
+          gradient="gradient-success"
+        />
       </div>
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
-        <Button onClick={() => navigate("/interview-prep")} className="gradient-primary text-primary-foreground">
-          <BookOpen className="w-4 h-4 mr-2" /> Prep for New Interview
+        <Button
+          onClick={() => navigate("/interview-prep")}
+          className="gradient-primary text-primary-foreground"
+        >
+          <BookOpen className="w-4 h-4 mr-2" />
+          Prep for New Interview
         </Button>
-        <Button onClick={() => navigate("/job-tracker")} variant="outline">
-          <Plus className="w-4 h-4 mr-2" /> Add Job Application
+
+        <Button
+          onClick={() => navigate("/job-tracker")}
+          variant="outline"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add Job Application
         </Button>
       </div>
 
-      {/* Recent Sessions */}
+      {/* Content */}
       <div className="grid md:grid-cols-2 gap-6">
+        {/* Prep Sessions */}
         <div>
-          <h2 className="text-lg font-semibold text-foreground mb-3">Recent Prep Sessions</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-3">
+            Recent Prep Sessions
+          </h2>
+
           {recentSessions.length === 0 ? (
-            <div className="rounded-xl bg-card border border-border p-6 text-center">
-              <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm">No sessions yet</p>
-              <Button variant="link" onClick={() => navigate("/interview-prep")} className="text-primary mt-1">
-                Start your first prep →
-              </Button>
-            </div>
+            <EmptyState
+              icon={<BookOpen className="w-10 h-10" />}
+              title="Start Your Interview Journey"
+              description="Get AI-powered interview preparation, personalized feedback, and track your readiness over time."
+              buttonText="Start First Prep Session"
+              onButtonClick={() => navigate("/interview-prep")}
+              tips={[
+                "Practice technical and behavioral interview questions",
+                "Get instant AI feedback after every session",
+                "Build confidence with structured preparation",
+                "Track your improvement over time",
+              ]}
+            />
           ) : (
             <div className="space-y-2">
               {recentSessions.map((s) => (
@@ -116,10 +186,22 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
                   className="rounded-xl bg-card border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
                 >
                   <div>
-                    <p className="font-medium text-foreground text-sm">{s.company}</p>
-                    <p className="text-xs text-muted-foreground">{s.jobTitle}</p>
+                    <p className="font-medium text-foreground text-sm">
+                      {s.company}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      {s.jobTitle}
+                    </p>
                   </div>
-                  <Badge className={s.readinessScore >= 70 ? "bg-success/20 text-success" : "bg-warning/20 text-warning"}>
+
+                  <Badge
+                    className={
+                      s.readinessScore >= 70
+                        ? "bg-success/20 text-success"
+                        : "bg-warning/20 text-warning"
+                    }
+                  >
                     {s.readinessScore}%
                   </Badge>
                 </div>
@@ -128,16 +210,26 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
           )}
         </div>
 
+        {/* Applications */}
         <div>
-          <h2 className="text-lg font-semibold text-foreground mb-3">Recent Applications</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-3">
+            Recent Applications
+          </h2>
+
           {recentJobs.length === 0 ? (
-            <div className="rounded-xl bg-card border border-border p-6 text-center">
-              <Briefcase className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm">No applications yet</p>
-              <Button variant="link" onClick={() => navigate("/job-tracker")} className="text-primary mt-1">
-                Track your first application →
-              </Button>
-            </div>
+            <EmptyState
+              icon={<Briefcase className="w-10 h-10" />}
+              title="Track Your Job Applications"
+              description="Organize internship and job applications, monitor statuses, and stay on top of your opportunities."
+              buttonText="Add First Application"
+              onButtonClick={() => navigate("/job-tracker")}
+              tips={[
+                "Track every application in one place",
+                "Monitor interview and offer progress",
+                "Stay organized during placements",
+                "Improve your application strategy",
+              ]}
+            />
           ) : (
             <div className="space-y-2">
               {recentJobs.map((j) => (
@@ -146,9 +238,15 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
                   className="rounded-xl bg-card border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
                 >
                   <div>
-                    <p className="font-medium text-foreground text-sm">{j.companyName}</p>
-                    <p className="text-xs text-muted-foreground">{j.jobTitle}</p>
+                    <p className="font-medium text-foreground text-sm">
+                      {j.companyName}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      {j.jobTitle}
+                    </p>
                   </div>
+
                   <Badge className={statusColor[j.status] || ""}>
                     {j.status}
                   </Badge>

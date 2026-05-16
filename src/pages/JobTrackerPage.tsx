@@ -530,6 +530,7 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
         </div>
       )}
 
+<<<<<<< HEAD
       {localJobs.length === 0 && (
         <div className="bg-card border border-border rounded-2xl p-12 text-center shadow-card">
           <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -538,8 +539,54 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
           <Button onClick={() => setShowAdd(true)} className="gradient-primary text-primary-foreground">
             <Plus className="w-4 h-4 mr-2" /> Add Your First Application
           </Button>
+=======
+      {jobs.length === 0 && (
+  <div className="bg-card border border-border rounded-2xl p-8 shadow-card text-center relative overflow-hidden">
+    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10 pointer-events-none" />
+
+    <div className="relative z-10">
+      <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-6 shadow-glow">
+        <Briefcase className="w-8 h-8 text-white" />
+      </div>
+
+      <h2 className="text-2xl font-bold text-foreground mb-3">
+        Stay Organized During Placements
+      </h2>
+
+      <p className="text-muted-foreground max-w-lg mx-auto mb-6 leading-relaxed">
+        Track internship and job applications, monitor interview stages,
+        and manage opportunities in one organized workspace.
+      </p>
+
+      <Button
+        onClick={() => setShowAdd(true)}
+        className="gradient-primary text-primary-foreground px-6"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        Add Your First Application
+      </Button>
+
+      <div className="grid md:grid-cols-2 gap-3 mt-8">
+        <div className="bg-secondary/30 border border-border rounded-xl p-4 text-sm text-muted-foreground text-left">
+          ✨ Track every application in one place
+>>>>>>> 88d316d (Improve onboarding empty states across dashboard modules)
         </div>
-      )}
+
+        <div className="bg-secondary/30 border border-border rounded-xl p-4 text-sm text-muted-foreground text-left">
+          ✨ Monitor interview and offer progress
+        </div>
+
+        <div className="bg-secondary/30 border border-border rounded-xl p-4 text-sm text-muted-foreground text-left">
+          ✨ Stay organized during placements
+        </div>
+
+        <div className="bg-secondary/30 border border-border rounded-xl p-4 text-sm text-muted-foreground text-left">
+          ✨ Improve your application strategy
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
