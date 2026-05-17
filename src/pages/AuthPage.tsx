@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,8 +9,15 @@ import { motion } from "framer-motion";
 
 interface AuthPageProps {
   mode: "login" | "signup";
-  onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  onSignup: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  onLogin: (
+    email: string,
+    password: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  onSignup: (
+    name: string,
+    email: string,
+    password: string,
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
@@ -19,32 +26,54 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const isFormInvalid =
+    !email.trim() || !password.trim() || (mode === "signup" && !name.trim());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === "login") {
-      const res = await onLogin(email, password);
-      if (res.success) {
-        toast({ title: "Welcome back!", description: "Logged in successfully." });
-        navigate("/dashboard");
+    if (isLoading) return;
+
+    setIsLoading(true);
+    try {
+      if (mode === "login") {
+        const res = await onLogin(email, password);
+        if (res.success) {
+          toast({
+            title: "Welcome back!",
+            description: "Logged in successfully.",
+          });
+          navigate("/dashboard");
+        } else {
+          toast({
+            title: "Error",
+            description: res.error,
+            variant: "destructive",
+          });
+        }
       } else {
-        toast({ title: "Error", description: res.error, variant: "destructive" });
+        const res = await onSignup(name, email, password);
+        if (res.success) {
+          toast({
+            title: "Account created!",
+            description: "Let's set up your profile.",
+          });
+          navigate("/onboarding");
+        } else {
+          toast({
+            title: "Error",
+            description: res.error,
+            variant: "destructive",
+          });
+        }
       }
-    } else {
-      const res = await onSignup(name, email, password);
-      if (res.success) {
-        toast({ title: "Account created!", description: "Let's set up your profile." });
-        navigate("/onboarding");
-      } else {
-        toast({ title: "Error", description: res.error, variant: "destructive" });
-      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-
     <div className="min-h-screen bg-background relative overflow-hidden">
-
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-120px] left-[-120px] w-[300px] h-[300px] bg-primary/10 blur-3xl rounded-full" />
 
@@ -53,9 +82,7 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
 
       <div className="relative z-10 min-h-screen px-4 py-4 lg:py-8">
         <div className="max-w-6xl mx-auto min-h-[calc(100vh-3rem)] flex items-center">
-
           <div className="grid lg:grid-cols-2 gap-12 items-center w-full">
-
             {/* LEFT */}
             <motion.div
               initial={{ opacity: 0, x: -30 }}
@@ -64,7 +91,6 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
               className="hidden lg:flex flex-col justify-center"
             >
               <div className="max-w-xl">
-
                 <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/40 px-4 py-2 text-sm text-muted-foreground mb-6 backdrop-blur">
                   <Sparkles className="w-4 h-4 text-primary" />
                   Smart interview preparation platform
@@ -76,16 +102,14 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
                 </h1>
 
                 <p className="text-muted-foreground text-lg mt-5 leading-relaxed">
-                  PrepIQ combines AI-powered interview preparation, career profiling,
-                  mock interviews, application tracking, and progress analytics into
-                  one modern workspace for students and job seekers.
+                  PrepIQ combines AI-powered interview preparation, career
+                  profiling, mock interviews, application tracking, and progress
+                  analytics into one modern workspace for students and job
+                  seekers.
                 </p>
-
-
 
                 {/*Features - desktop*/}
                 <div className="flex flex-wrap gap-3 mt-8">
-
                   <div className="px-4 py-2 rounded-full border border-border bg-card/50 text-sm text-muted-foreground">
                     AI Mock Interviews
                   </div>
@@ -109,9 +133,7 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
                   <div className="px-4 py-2 rounded-full border border-border bg-card/50 text-sm text-muted-foreground">
                     Resume–JD Matching
                   </div>
-
                 </div>
-
               </div>
             </motion.div>
 
@@ -134,9 +156,7 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
               }}
               className="w-full max-w-md mx-auto"
             >
-
               <div className="text-center mb-6 lg:mb-8">
-
                 <motion.div
                   key={mode + "-icon"}
                   initial={{ rotate: -10, opacity: 0 }}
@@ -164,20 +184,13 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
                   transition={{ duration: 0.35 }}
                   className="text-muted-foreground mt-1"
                 >
-                  {mode === "login"
-                    ? "Welcome back"
-                    : "Start your journey"}
+                  {mode === "login" ? "Welcome back" : "Start your journey"}
                 </motion.p>
-
-
-
               </div>
 
               {/* AUTH */}
               <div className="bg-card border border-border rounded-2xl p-6 shadow-card backdrop-blur">
-
                 <form onSubmit={handleSubmit} className="space-y-4">
-
                   {mode === "signup" && (
                     <motion.div
                       initial={{ opacity: 0, y: -8 }}
@@ -227,23 +240,29 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
 
                   <Button
                     type="submit"
+                    disabled={isLoading || isFormInvalid}
                     className="w-full gradient-primary text-primary-foreground hover:opacity-90 transition-all duration-300"
                   >
-                    {mode === "login"
-                      ? "Sign In"
-                      : "Create Account"}
-
-                    <ArrowRight className="w-4 h-4 ml-2" />
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {mode === "login"
+                          ? "Signing In..."
+                          : "Creating Account..."}
+                      </>
+                    ) : (
+                      <>
+                        {mode === "login" ? "Sign In" : "Create Account"}
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </>
+                    )}
                   </Button>
-
                 </form>
 
                 <p className="text-center text-sm text-muted-foreground mt-5">
-
                   {mode === "login" ? (
                     <>
                       Don't have an account?{" "}
-
                       <Link
                         to="/signup"
                         className="text-primary hover:underline transition-colors"
@@ -254,7 +273,6 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
                   ) : (
                     <>
                       Already have an account?{" "}
-
                       <Link
                         to="/login"
                         className="text-primary hover:underline transition-colors"
@@ -263,11 +281,9 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
                       </Link>
                     </>
                   )}
-
                 </p>
               </div>
             </motion.div>
-
 
             {/* mobile */}
             <motion.div
@@ -276,15 +292,13 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
               transition={{ duration: 0.4, delay: 0.1 }}
               className="lg:hidden text-center mt-6"
             >
-
               <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
-                Full-stack AI interview preparation platform with mock interviews,
-                prep roadmaps, job tracking, and progress analytics.
+                Full-stack AI interview preparation platform with mock
+                interviews, prep roadmaps, job tracking, and progress analytics.
               </p>
 
               {/* Feature - mobile */}
               <div className="flex flex-wrap justify-center gap-2 mt-4">
-
                 <div className="px-3 py-1.5 rounded-full border border-border bg-card/50 text-[11px] text-muted-foreground">
                   AI Mock Interviews
                 </div>
@@ -304,15 +318,11 @@ export default function AuthPage({ mode, onLogin, onSignup }: AuthPageProps) {
                 <div className="px-3 py-1.5 rounded-full border border-border bg-card/50 text-[11px] text-muted-foreground">
                   Progress Analytics
                 </div>
-
               </div>
             </motion.div>
-
           </div>
         </div>
       </div>
     </div>
-
-
   );
 }
