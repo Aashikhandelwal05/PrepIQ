@@ -574,7 +574,51 @@ def generate_session_payload(job_title: str, company: str, jd_text: str, resume_
         RoadmapDay(day=5, focusArea="Final Review", tasks=["Review notes", "Prepare questions to ask", "Rest before the interview"]),
     ]
     return gap_analysis, readiness, question_bank, roadmap
+def _significant_tokens(text: str) -> set[str]:
+    stopwords = {
+        "the", "and", "a", "an", "of", "to", "is", "are", "in", "for", "on", "with",
+        "that", "this", "it", "as", "at", "by", "from", "be", "or", "not", "have",
+        "has", "was", "were", "will", "can", "i", "you", "your", "we", "our", "they",
+        "their", "what", "which", "when", "where", "why", "how", "do", "does", "did",
+        "so", "but", "if", "then", "because", "there", "these", "those", "meaning",
+    }
+    return {
+        token.lower()
+        for token in re.findall(r"\b[a-zA-Z]{3,}\b", text)
+        if token.lower() not in stopwords
+    }
 
+
+FALLBACK_TECHNICAL_TERMS = {
+    "model", "data", "training", "test", "accuracy", "performance", "generalize",
+    "generalization", "variance", "bias", "overfit", "overfitting", "unseen",
+    "feature", "dataset", "classification", "regression", "optimization",
+    "neural", "network", "algorithm", "prediction", "validation", "loss",
+    "error", "regularization", "parameter",
+}
+
+
+def _fallback_answer_quality(question: str, answer: str) -> float:
+    answer_tokens = _significant_tokens(answer)
+    question_tokens = _significant_tokens(question)
+
+    overlap = len(question_tokens & answer_tokens) / max(1, len(question_tokens))
+    technical_count = sum(1 for token in answer_tokens if token in FALLBACK_TECHNICAL_TERMS)
+    technical_density = min(1.0, technical_count / 4)
+
+    explanatory = bool(
+        re.search(
+            r"\b(?:because|since|therefore|thus|for example|specifically|explain|describe|meaning|understand|understanding)\b",
+            answer,
+            re.I,
+        )
+    )
+
+    length_score = min(1.0, len(answer_tokens) / 20)
+    quality = max(overlap, technical_density * 0.7 + length_score * 0.3)
+    if explanatory:
+        quality = min(1.0, quality + 0.15)
+    return quality
 
 def evaluate_mock_attempt(question: str, answer: str) -> tuple[int, MockFeedback]:
     # --- ML: always analyze confidence regardless of OpenRouter outcome ---
@@ -610,23 +654,58 @@ def evaluate_mock_attempt(question: str, answer: str) -> tuple[int, MockFeedback
         logger.warning("Using fallback mock feedback because OpenRouter failed: %s", exc)
 
     base_seed = f"{question}|{answer}"
-    answer_len = len(answer.strip())
-    score = stable_number(base_seed, 5, 9)
-    if answer_len > 400:
-        score = min(score + 1, 10)
-    if answer_len < 120:
-        score = max(score - 1, 4)
+    answer_text = answer.strip()
+    answer_words = re.findall(r"\w+", answer_text)
+    quality = _fallback_answer_quality(question, answer_text)
 
-    verdict = (
-        "Excellent response with strong examples!"
-        if score >= 8
-        else "Good structure, but lacked specific examples"
-        if score >= 5
-        else "Needs more depth and concrete examples"
-    )
+    if len(answer_words) < 10 or len(answer_text) < 40:
+        score = stable_number(base_seed, 1, 3)
+        strengths = ["Basic response submitted"]
+        missing = [
+            "Answer was too short to fully evaluate.",
+            "Provide a fuller explanation with technical detail or examples.",
+        ]
+        verdict = "Too short and lacking detail."
+    elif quality < 0.35:
+        score = stable_number(base_seed, 1, 4)
+        strengths = ["Attempted to answer the question"]
+        missing = [
+            "The answer did not clearly address the question.",
+            "Add more relevant explanation and avoid one-word responses.",
+        ]
+        verdict = "Low relevance and insufficient detail."
+    elif quality < 0.55:
+        score = stable_number(base_seed, 3, 6)
+        strengths = ["Some relevant terms were included"]
+        missing = [
+            "Explain the concept more directly in relation to the question.",
+            "Add a concrete example or clearer reasoning.",
+        ]
+        verdict = "Basic response, needs a stronger explanation."
+    else:
+        score = stable_number(base_seed, 5, 8)
+        if len(answer_text) > 400:
+            score = min(score + 1, 10)
+        if len(answer_text) < 120:
+            score = max(score - 1, 4)
+
+        strengths = [
+            "Relevant concepts are referenced",
+            "Answer has a reasonable structure",
+        ]
+        missing = [
+            "Add more specific examples to strengthen the response",
+            "Clarify the impact or outcome more directly",
+        ]
+        verdict = (
+            "Excellent response with strong examples!"
+            if score >= 8
+            else "Good structure, but lacked specific examples"
+        )
+
     return score, MockFeedback(
-        strengths=["Good structure and organization", "Relevant experience was included", "Clear communication style"],
-        missing=["Could include more specific metrics", "Missing stronger articulation of impact"],
+        strengths=strengths,
+        missing=missing,
         modelAnswer=(
             "A strong answer should set the context, explain the challenge, describe the action taken, "
             "and close with a measurable result. Use a concrete example, include numbers where possible, "
