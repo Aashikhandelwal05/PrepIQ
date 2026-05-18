@@ -83,7 +83,7 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
         <StatCard icon={BookOpen} label="Prep Sessions" value={sessions.length} />
         <StatCard icon={MessageSquare} label="Mock Interviews" value={mocks.length} gradient="gradient-accent" />
         <StatCard icon={Briefcase} label="Jobs Applied" value={jobs.length} gradient="gradient-warm" />
-        <StatCard icon={TrendingUp} label="Avg Mock Score" value={`${avgScore}%`} gradient="gradient-success" />
+        <StatCard icon={TrendingUp} label="Avg Mock Score" value={`${avgScore}/100`} gradient="gradient-success" />
       </div>
 
       {/* Quick Actions */}
