@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Briefcase, Plus, LayoutGrid, Table as TableIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { CreateJobApplicationInput, JobApplication, InterviewSession } from "@/lib/store";
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragOverEvent,
+  DragEndEvent,
+  useDroppable,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const STATUSES = ["Applied", "Screening", "Interview", "Offer", "Rejected", "Ghosted"] as const;
 type Status = (typeof STATUSES)[number];
@@ -22,6 +44,54 @@ const statusColor: Record<string, string> = {
   Rejected: "bg-destructive/20 text-destructive border-destructive/30",
   Ghosted: "bg-muted text-muted-foreground border-border",
 };
+
+// --- Drag and Drop Wrappers ---
+function SortableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className="min-w-[260px] flex-shrink-0 flex flex-col">
+      {children}
+    </div>
+  );
+}
+
+function SortableCard({ job, onClick, isOverdue }: { job: JobApplication; onClick: () => void; isOverdue: boolean }) {
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id: job.id,
+    data: { type: "Job", job },
+  });
+
+  const style = {
+    transition,
+    transform: CSS.Transform.toString(transform),
+    touchAction: "none",
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={onClick}
+      className={`rounded-xl bg-card border p-3 cursor-pointer hover:border-primary/30 transition-all ${
+        isOverdue ? "border-destructive/50 shadow-[0_0_10px_-3px_hsl(var(--destructive)/0.4)]" : "border-border"
+      } ${isDragging ? "opacity-50 scale-105 shadow-2xl z-50 relative" : ""}`}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
+          {job.companyName.charAt(0)}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{job.companyName}</p>
+          <p className="text-xs text-muted-foreground truncate">{job.jobTitle}</p>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">{job.dateApplied}</p>
+    </div>
+  );
+}
+// ------------------------------
 
 interface JobTrackerPageProps {
   jobs: JobApplication[];
@@ -40,9 +110,26 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
   const [form, setForm] = useState({ companyName: "", jobTitle: "", jobUrl: "", status: "Applied" as Status });
   const { toast } = useToast();
 
+  // Optimistic jobs state for DnD
+  const [localJobs, setLocalJobs] = useState<JobApplication[]>(jobs);
+  const localJobsRef = useRef(jobs);
+  const [activeJob, setActiveJob] = useState<JobApplication | null>(null);
+
+  useEffect(() => {
+    setLocalJobs(jobs);
+    localJobsRef.current = jobs;
+  }, [jobs]);
+
   useEffect(() => {
     setDraftJob(selectedJob);
   }, [selectedJob]);
+
+  // Touch and pointer sensors configured to allow clicking
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const handleAdd = async () => {
     try {
@@ -64,9 +151,9 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
     }
   };
 
-  const active = jobs.filter((j) => !["Rejected", "Ghosted"].includes(j.status));
-  const interviews = jobs.filter((j) => j.status === "Interview");
-  const offers = jobs.filter((j) => j.status === "Offer");
+  const active = localJobs.filter((j) => !["Rejected", "Ghosted"].includes(j.status));
+  const interviews = localJobs.filter((j) => j.status === "Interview");
+  const offers = localJobs.filter((j) => j.status === "Offer");
 
   const kanbanColumns: Status[] = ["Applied", "Screening", "Interview", "Offer", "Rejected", "Ghosted"];
 
@@ -77,6 +164,8 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
 
   const updateSelectedJobStatus = async (job: JobApplication, status: Status) => {
     try {
+      // Optimistic override for non-drag actions (like table view or detail sheet)
+      setLocalJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, status } : j)));
       const updated = await onUpdateJob(job.id, { status });
       if (selectedJob?.id === job.id) {
         setSelectedJob(updated);
@@ -84,6 +173,8 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
       }
       toast({ title: "Status updated", description: `${updated.companyName} is now ${updated.status}.` });
     } catch (error) {
+      // Revert if failed
+      setLocalJobs(jobs);
       toast({
         title: "Unable to update status",
         description: error instanceof Error ? error.message : "Please try again.",
@@ -96,7 +187,6 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
     if (!draftJob) return;
     setSavingDraft(true);
     try {
-      // Persist the whole detail sheet at once so contributors are not fighting one request per keystroke.
       const updated = await onUpdateJob(draftJob.id, {
         status: draftJob.status,
         location: draftJob.location,
@@ -121,6 +211,78 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
       setSavingDraft(false);
     }
   };
+
+  // --- Drag and Drop Handlers ---
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const job = localJobs.find((j) => j.id === active.id);
+    if (job) setActiveJob(job);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id;
+    const overId = over.id;
+
+    const isActiveJob = active.data.current?.type === "Job";
+    const isOverJob = over.data.current?.type === "Job";
+    const isOverColumn = STATUSES.includes(overId as Status);
+
+    if (!isActiveJob) return;
+
+    setLocalJobs((prev) => {
+      const activeIndex = prev.findIndex((j) => j.id === activeId);
+      if (activeIndex === -1) return prev;
+
+      const newJobs = [...prev];
+      const activeJobObj = { ...newJobs[activeIndex] };
+      newJobs[activeIndex] = activeJobObj;
+
+      if (isOverJob) {
+        const overIndex = prev.findIndex((j) => j.id === overId);
+        if (overIndex !== -1 && activeJobObj.status !== prev[overIndex].status) {
+          activeJobObj.status = prev[overIndex].status;
+          return arrayMove(newJobs, activeIndex, overIndex);
+        } else if (overIndex !== -1) {
+          return arrayMove(newJobs, activeIndex, overIndex);
+        }
+      } else if (isOverColumn) {
+        if (activeJobObj.status !== overId) {
+          activeJobObj.status = overId as Status;
+          return arrayMove(newJobs, activeIndex, newJobs.length - 1);
+        }
+      }
+      localJobsRef.current = newJobs;
+      return newJobs;
+    });
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveJob(null);
+
+    if (!over) return;
+
+    const originalJob = jobs.find((j) => j.id === active.id);
+    if (!originalJob) return;
+
+    let finalStatus = originalJob.status;
+    const isOverColumn = STATUSES.includes(over.id as Status);
+    
+    if (isOverColumn) {
+      finalStatus = over.id as Status;
+    } else if (over.data.current?.type === "Job") {
+      finalStatus = over.data.current.job.status;
+    }
+
+    // If status changed due to drag, trigger API sync
+    if (finalStatus !== originalJob.status) {
+      void updateSelectedJobStatus(originalJob, finalStatus);
+    }
+  };
+  // ------------------------------
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -179,7 +341,7 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-xl bg-card border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{jobs.length}</p>
+          <p className="text-2xl font-bold text-foreground">{localJobs.length}</p>
           <p className="text-xs text-muted-foreground">Total</p>
         </div>
         <div className="rounded-xl bg-card border border-border p-3 text-center">
@@ -187,16 +349,17 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
           <p className="text-xs text-muted-foreground">Active</p>
         </div>
         <div className="rounded-xl bg-card border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{jobs.length ? Math.round((interviews.length / jobs.length) * 100) : 0}%</p>
+          <p className="text-2xl font-bold text-foreground">{localJobs.length ? Math.round((interviews.length / localJobs.length) * 100) : 0}%</p>
           <p className="text-xs text-muted-foreground">Interview Rate</p>
         </div>
         <div className="rounded-xl bg-card border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{jobs.length ? Math.round((offers.length / jobs.length) * 100) : 0}%</p>
+          <p className="text-2xl font-bold text-foreground">{localJobs.length ? Math.round((offers.length / localJobs.length) * 100) : 0}%</p>
           <p className="text-xs text-muted-foreground">Offer Rate</p>
         </div>
       </div>
 
       <Sheet open={!!selectedJob} onOpenChange={(open) => !open && setSelectedJob(null)}>
+        {/* ... Sheet Content ... */}
         <SheetContent className="bg-card border-border w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{selectedJob?.companyName} — {selectedJob?.jobTitle}</SheetTitle>
@@ -250,46 +413,56 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
       </Sheet>
 
       {view === "kanban" && (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {kanbanColumns.map((status) => {
-            const colJobs = jobs.filter((j) => j.status === status);
-            return (
-              <div key={status} className="min-w-[260px] flex-shrink-0">
-                <div className="flex items-center gap-2 mb-3">
-                  <Badge className={statusColor[status]}>{status}</Badge>
-                  <span className="text-xs text-muted-foreground">{colJobs.length}</span>
-                </div>
-                <div className="space-y-2">
-                  {colJobs.map((job) => (
-                    <div
-                      key={job.id}
-                      onClick={() => setSelectedJob(job)}
-                      className={`rounded-xl bg-card border p-3 cursor-pointer hover:border-primary/30 transition-all ${
-                        isOverdue(job) ? "border-destructive/50 shadow-[0_0_10px_-3px_hsl(var(--destructive)/0.4)]" : "border-border"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
-                          {job.companyName.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{job.companyName}</p>
-                          <p className="text-xs text-muted-foreground truncate">{job.jobTitle}</p>
-                        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex gap-4 overflow-x-auto pb-4 h-full">
+            {kanbanColumns.map((status) => {
+              const colJobs = localJobs.filter((j) => j.status === status);
+              return (
+                <SortableColumn key={status} id={status}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge className={statusColor[status]}>{status}</Badge>
+                    <span className="text-xs text-muted-foreground">{colJobs.length}</span>
+                  </div>
+                  <div className="space-y-2 flex-grow h-full min-h-[100px]">
+                    <SortableContext items={colJobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                      {colJobs.map((job) => (
+                        <SortableCard key={job.id} job={job} onClick={() => setSelectedJob(job)} isOverdue={isOverdue(job)} />
+                      ))}
+                    </SortableContext>
+                    {colJobs.length === 0 && (
+                      <div className="rounded-xl border border-dashed border-border p-4 text-center h-20 flex items-center justify-center">
+                        <p className="text-xs text-muted-foreground">Drop here</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{job.dateApplied}</p>
-                    </div>
-                  ))}
-                  {colJobs.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-border p-4 text-center">
-                      <p className="text-xs text-muted-foreground">No applications</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                </SortableColumn>
+              );
+            })}
+          </div>
+
+          <DragOverlay>
+            {activeJob ? (
+              <div className="rounded-xl bg-card border border-primary/50 p-3 shadow-2xl scale-105 opacity-90 cursor-grabbing">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
+                    {activeJob.companyName.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{activeJob.companyName}</p>
+                    <p className="text-xs text-muted-foreground truncate">{activeJob.jobTitle}</p>
+                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground">{activeJob.dateApplied}</p>
               </div>
-            );
-          })}
-        </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {view === "table" && (
@@ -306,12 +479,12 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
                 </tr>
               </thead>
               <tbody>
-                {jobs.length === 0 ? (
+                {localJobs.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-12 text-center text-muted-foreground">No applications yet</td>
                   </tr>
                 ) : (
-                  jobs.map((job) => (
+                  localJobs.map((job) => (
                     <tr key={job.id} className="border-b border-border/50 hover:bg-secondary/20 cursor-pointer" onClick={() => setSelectedJob(job)}>
                       <td className="py-3 px-4 font-medium text-foreground">{job.companyName}</td>
                       <td className="py-3 px-4 text-muted-foreground">{job.jobTitle}</td>
@@ -341,7 +514,7 @@ export default function JobTrackerPage({ jobs, onAddJob, onUpdateJob }: JobTrack
         </div>
       )}
 
-      {jobs.length === 0 && (
+      {localJobs.length === 0 && (
         <div className="bg-card border border-border rounded-2xl p-12 text-center shadow-card">
           <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-foreground mb-1">No applications tracked</h3>
