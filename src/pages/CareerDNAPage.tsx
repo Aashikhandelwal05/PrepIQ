@@ -36,6 +36,10 @@ export default function CareerDNAPage({ user, profile }: CareerDNAPageProps) {
     </div>
   );
 
+  const interviewFears = profile.interviewFears ?? [];
+  const fearNotes = profile.fearNotes?.trim() ?? "";
+  const hasInterviewFocus = interviewFears.length > 0 || fearNotes.length > 0;
+
   return (
     <div className="space-y-6 animate-slide-up">
       <div className="flex items-center justify-between">
@@ -105,6 +109,21 @@ export default function CareerDNAPage({ user, profile }: CareerDNAPageProps) {
             </div>
           </div>
         </Section>
+
+        {hasInterviewFocus && (
+          <Section title="Interview Focus Areas">
+            <div className="space-y-3 text-sm">
+              {interviewFears.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {interviewFears.map((fear) => (
+                    <Badge key={fear} variant="outline" className="text-xs">{fear}</Badge>
+                  ))}
+                </div>
+              )}
+              {fearNotes && <p className="text-muted-foreground">{fearNotes}</p>}
+            </div>
+          </Section>
+        )}
       </div>
 
       <Button onClick={() => navigate("/onboarding")} variant="outline">
