@@ -7,12 +7,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TagInput } from "@/components/TagInput";
 import { useToast } from "@/hooks/use-toast";
 import { CareerProfile, WorkEntry, SkillEntry, User } from "@/lib/store";
 
-const STEPS = ["Personal Info", "Education", "Work History", "Skills", "Interview Fears"];
+const STEPS = [
+  "Personal Info",
+  "Education",
+  "Work History",
+  "Skills",
+  "Interview Fears",
+];
 const FEAR_OPTIONS = [
   "Technical rounds",
   "Data structures & algorithms",
@@ -24,52 +36,227 @@ const FEAR_OPTIONS = [
 ];
 
 const PREDEFINED_ROLES = [
-  "Software Engineer", "Frontend Developer", "Backend Developer", "Full Stack Developer", "Web Developer",
-  "Mobile App Developer", "Android Developer", "iOS Developer", "React Developer", "Node.js Developer",
-  "Java Developer", "Python Developer", "C++ Developer", "DevOps Engineer", "Cloud Engineer",
-  "Site Reliability Engineer", "Data Analyst", "Data Scientist", "Machine Learning Engineer",
-  "AI Engineer", "Deep Learning Engineer", "NLP Engineer", "Computer Vision Engineer",
-  "Cybersecurity Analyst", "Security Engineer", "QA Engineer", "Test Engineer",
-  "Automation Engineer", "Business Analyst", "Product Manager", "UI/UX Designer",
-  "Graphic Designer", "Game Developer", "Embedded Systems Engineer", "Blockchain Developer",
-  "AR/VR Developer", "Database Administrator", "System Administrator", "Network Engineer",
-  "Technical Support Engineer", "Solutions Architect"
+  "Software Engineer",
+  "Frontend Developer",
+  "Backend Developer",
+  "Full Stack Developer",
+  "Web Developer",
+  "Mobile App Developer",
+  "Android Developer",
+  "iOS Developer",
+  "React Developer",
+  "Node.js Developer",
+  "Java Developer",
+  "Python Developer",
+  "C++ Developer",
+  "DevOps Engineer",
+  "Cloud Engineer",
+  "Site Reliability Engineer",
+  "Data Analyst",
+  "Data Scientist",
+  "Machine Learning Engineer",
+  "AI Engineer",
+  "Deep Learning Engineer",
+  "NLP Engineer",
+  "Computer Vision Engineer",
+  "Cybersecurity Analyst",
+  "Security Engineer",
+  "QA Engineer",
+  "Test Engineer",
+  "Automation Engineer",
+  "Business Analyst",
+  "Product Manager",
+  "UI/UX Designer",
+  "Graphic Designer",
+  "Game Developer",
+  "Embedded Systems Engineer",
+  "Blockchain Developer",
+  "AR/VR Developer",
+  "Database Administrator",
+  "System Administrator",
+  "Network Engineer",
+  "Technical Support Engineer",
+  "Solutions Architect",
 ].sort();
 
 const PREDEFINED_COMPANIES = [
-  "Google", "Microsoft", "Amazon", "Meta", "Apple", "Netflix", "Adobe", "Oracle", "IBM", "Intel",
-  "NVIDIA", "Tesla", "Salesforce", "Cisco", "SAP", "Uber", "Airbnb", "Spotify", "LinkedIn", "PayPal",
-  "Atlassian", "Dropbox", "Stripe", "OpenAI", "Infosys", "TCS", "Wipro", "Accenture", "Cognizant",
-  "Capgemini", "Tech Mahindra", "HCL", "Zoho", "Freshworks", "Flipkart", "Paytm", "PhonePe", "Swiggy",
-  "Zomato", "Ola", "Razorpay", "Meesho", "Myntra", "Juspay"
+  "Google",
+  "Microsoft",
+  "Amazon",
+  "Meta",
+  "Apple",
+  "Netflix",
+  "Adobe",
+  "Oracle",
+  "IBM",
+  "Intel",
+  "NVIDIA",
+  "Tesla",
+  "Salesforce",
+  "Cisco",
+  "SAP",
+  "Uber",
+  "Airbnb",
+  "Spotify",
+  "LinkedIn",
+  "PayPal",
+  "Atlassian",
+  "Dropbox",
+  "Stripe",
+  "OpenAI",
+  "Infosys",
+  "TCS",
+  "Wipro",
+  "Accenture",
+  "Cognizant",
+  "Capgemini",
+  "Tech Mahindra",
+  "HCL",
+  "Zoho",
+  "Freshworks",
+  "Flipkart",
+  "Paytm",
+  "PhonePe",
+  "Swiggy",
+  "Zomato",
+  "Ola",
+  "Razorpay",
+  "Meesho",
+  "Myntra",
+  "Juspay",
 ].sort();
 
 const PREDEFINED_SOFT_SKILLS = [
-  "Communication", "Leadership", "Problem Solving", "Critical Thinking", "Analytical Thinking",
-  "Teamwork", "Collaboration", "Adaptability", "Time Management", "Creativity", "Decision Making",
-  "Conflict Resolution", "Public Speaking", "Negotiation", "Emotional Intelligence",
-  "Project Management", "Mentorship", "Attention to Detail", "Customer Handling",
-  "Presentation Skills", "Research Skills", "Strategic Thinking", "Innovation", "Self Learning"
+  "Communication",
+  "Leadership",
+  "Problem Solving",
+  "Critical Thinking",
+  "Analytical Thinking",
+  "Teamwork",
+  "Collaboration",
+  "Adaptability",
+  "Time Management",
+  "Creativity",
+  "Decision Making",
+  "Conflict Resolution",
+  "Public Speaking",
+  "Negotiation",
+  "Emotional Intelligence",
+  "Project Management",
+  "Mentorship",
+  "Attention to Detail",
+  "Customer Handling",
+  "Presentation Skills",
+  "Research Skills",
+  "Strategic Thinking",
+  "Innovation",
+  "Self Learning",
 ].sort();
 
 const PREDEFINED_TECH_SKILLS = [
-  "Java", "C", "C++", "Python", "JavaScript", "TypeScript", "Go", "Rust", "Kotlin", "Swift", "PHP", "Ruby", "Scala", "R", "Dart", "Perl",
-  "HTML", "CSS", "SASS", "Bootstrap", "Tailwind CSS", "React", "Next.js", "Vue.js", "Nuxt.js", "Angular", "Redux", "jQuery",
-  "Node.js", "Express.js", "Spring Boot", "Django", "Flask", "FastAPI", "Laravel", "ASP.NET", "NestJS", "Ruby on Rails",
-  "MySQL", "PostgreSQL", "MongoDB", "Firebase", "SQLite", "Redis", "Oracle DB", "MariaDB", "Cassandra",
-  "AWS", "Azure", "Google Cloud", "Docker", "Kubernetes", "Jenkins", "Terraform", "Git", "GitHub", "GitLab", "CI/CD", "Linux", "Nginx",
-  "Machine Learning", "Deep Learning", "TensorFlow", "PyTorch", "Scikit-learn", "Pandas", "NumPy", "OpenCV", "NLP", "Computer Vision", "Data Structures", "Algorithms", "Data Analysis", "Power BI", "Tableau",
-  "Flutter", "React Native", "Android Development", "iOS Development",
-  "Cybersecurity", "Ethical Hacking", "Network Security", "Penetration Testing"
+  "Java",
+  "C",
+  "C++",
+  "Python",
+  "JavaScript",
+  "TypeScript",
+  "Go",
+  "Rust",
+  "Kotlin",
+  "Swift",
+  "PHP",
+  "Ruby",
+  "Scala",
+  "R",
+  "Dart",
+  "Perl",
+  "HTML",
+  "CSS",
+  "SASS",
+  "Bootstrap",
+  "Tailwind CSS",
+  "React",
+  "Next.js",
+  "Vue.js",
+  "Nuxt.js",
+  "Angular",
+  "Redux",
+  "jQuery",
+  "Node.js",
+  "Express.js",
+  "Spring Boot",
+  "Django",
+  "Flask",
+  "FastAPI",
+  "Laravel",
+  "ASP.NET",
+  "NestJS",
+  "Ruby on Rails",
+  "MySQL",
+  "PostgreSQL",
+  "MongoDB",
+  "Firebase",
+  "SQLite",
+  "Redis",
+  "Oracle DB",
+  "MariaDB",
+  "Cassandra",
+  "AWS",
+  "Azure",
+  "Google Cloud",
+  "Docker",
+  "Kubernetes",
+  "Jenkins",
+  "Terraform",
+  "Git",
+  "GitHub",
+  "GitLab",
+  "CI/CD",
+  "Linux",
+  "Nginx",
+  "Machine Learning",
+  "Deep Learning",
+  "TensorFlow",
+  "PyTorch",
+  "Scikit-learn",
+  "Pandas",
+  "NumPy",
+  "OpenCV",
+  "NLP",
+  "Computer Vision",
+  "Data Structures",
+  "Algorithms",
+  "Data Analysis",
+  "Power BI",
+  "Tableau",
+  "Flutter",
+  "React Native",
+  "Android Development",
+  "iOS Development",
+  "Cybersecurity",
+  "Ethical Hacking",
+  "Network Security",
+  "Penetration Testing",
 ].sort();
 
-const SearchableMultiSelect = ({ options, selected, onChange, placeholder }: { options: string[], selected: string[], onChange: (val: string[]) => void, placeholder: string }) => {
+const SearchableMultiSelect = ({
+  options,
+  selected,
+  onChange,
+  placeholder,
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (val: string[]) => void;
+  placeholder: string;
+}) => {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
-  const filteredOptions = options.filter(opt => 
-    opt.toLowerCase().includes(query.toLowerCase()) && 
-    !selected.some(s => s.toLowerCase() === opt.toLowerCase())
+  const filteredOptions = options.filter(
+    (opt) =>
+      opt.toLowerCase().includes(query.toLowerCase()) &&
+      !selected.some((s) => s.toLowerCase() === opt.toLowerCase()),
   );
 
   return (
@@ -94,13 +281,15 @@ const SearchableMultiSelect = ({ options, selected, onChange, placeholder }: { o
             transition={{ duration: 0.15 }}
             className="absolute z-50 w-full mt-1 max-h-60 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none"
           >
-            {filteredOptions.map(opt => (
+            {filteredOptions.map((opt) => (
               <div
                 key={opt}
                 className="relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  if (!selected.some(s => s.toLowerCase() === opt.toLowerCase())) {
+                  if (
+                    !selected.some((s) => s.toLowerCase() === opt.toLowerCase())
+                  ) {
                     onChange([...selected, opt]);
                   }
                   setQuery("");
@@ -115,10 +304,16 @@ const SearchableMultiSelect = ({ options, selected, onChange, placeholder }: { o
       </AnimatePresence>
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2">
-          {selected.map(item => (
-            <div key={item} className="flex items-center gap-1 bg-secondary px-3 py-1 rounded-full text-sm">
+          {selected.map((item) => (
+            <div
+              key={item}
+              className="flex items-center gap-1 bg-secondary px-3 py-1 rounded-full text-sm"
+            >
               {item}
-              <button onClick={() => onChange(selected.filter(i => i !== item))} className="text-muted-foreground hover:text-foreground">
+              <button
+                onClick={() => onChange(selected.filter((i) => i !== item))}
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <Trash2 className="w-3 h-3" />
               </button>
             </div>
@@ -129,17 +324,62 @@ const SearchableMultiSelect = ({ options, selected, onChange, placeholder }: { o
   );
 };
 
-const SearchableInput = ({ value, onChange, options, placeholder, className }: { value: string, onChange: (val: string) => void, options: string[], placeholder?: string, className?: string }) => {
+const SearchableInput = ({
+  value,
+  onChange,
+  options,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: string[];
+  placeholder?: string;
+  className?: string;
+}) => {
   const [isOpen, setIsOpen] = useState(false);
-  const filteredOptions = value ? options.filter(opt => opt.toLowerCase().includes(value.toLowerCase()) && opt !== value).slice(0, 10) : [];
+  const filteredOptions = value
+    ? options
+        .filter(
+          (opt) =>
+            opt.toLowerCase().includes(value.toLowerCase()) && opt !== value,
+        )
+        .slice(0, 10)
+    : [];
   return (
     <div className="relative w-full">
-      <Input value={value} onChange={(e) => { onChange(e.target.value); setIsOpen(true); }} onFocus={() => setIsOpen(true)} onBlur={() => setTimeout(() => setIsOpen(false), 200)} placeholder={placeholder} className={className} />
+      <Input
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+        placeholder={placeholder}
+        className={className}
+      />
       <AnimatePresence>
         {isOpen && filteredOptions.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.15 }} className="absolute z-50 w-full mt-1 max-h-60 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none">
-            {filteredOptions.map(opt => (
-              <div key={opt} className="relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground" onMouseDown={(e) => { e.preventDefault(); onChange(opt); setIsOpen(false); }}>{opt}</div>
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.15 }}
+            className="absolute z-50 w-full mt-1 max-h-60 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none"
+          >
+            {filteredOptions.map((opt) => (
+              <div
+                key={opt}
+                className="relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+              >
+                {opt}
+              </div>
             ))}
           </motion.div>
         )}
@@ -163,7 +403,11 @@ const emptyWorkEntry = (): WorkEntry => ({
   responsibilities: "",
 });
 
-export default function OnboardingPage({ user, profile, onSave }: OnboardingPageProps) {
+export default function OnboardingPage({
+  user,
+  profile,
+  onSave,
+}: OnboardingPageProps) {
   const [step, setStep] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -175,7 +419,10 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
   const [graduationYear, setGraduationYear] = useState("");
   const [coursework, setCoursework] = useState("");
   const [certifications, setCertifications] = useState<string[]>([]);
-  const [workHistory, setWorkHistory] = useState<WorkEntry[]>([emptyWorkEntry()]);
+  const [isFresher, setIsFresher] = useState(false);
+  const [workHistory, setWorkHistory] = useState<WorkEntry[]>([
+    emptyWorkEntry(),
+  ]);
   const [technicalSkills, setTechnicalSkills] = useState<SkillEntry[]>([]);
   const [techQuery, setTechQuery] = useState("");
   const [isTechOpen, setIsTechOpen] = useState(false);
@@ -195,7 +442,9 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
     setGraduationYear(profile.graduationYear);
     setCoursework(profile.coursework);
     setCertifications(profile.certifications);
-    setWorkHistory(profile.workHistory.length > 0 ? profile.workHistory : [emptyWorkEntry()]);
+    setWorkHistory(
+      profile.workHistory.length > 0 ? profile.workHistory : [emptyWorkEntry()],
+    );
     setTechnicalSkills(profile.technicalSkills);
     setSoftSkills(profile.softSkills);
     setFears(profile.interviewFears);
@@ -203,18 +452,18 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
   }, [profile]);
 
   const addWorkEntry = () => {
-    setWorkHistory([
-      ...workHistory,
-      emptyWorkEntry(),
-    ]);
+    setWorkHistory([...workHistory, emptyWorkEntry()]);
   };
 
   const removeWorkEntry = (id: string) => {
-    if (workHistory.length > 1) setWorkHistory(workHistory.filter((w) => w.id !== id));
+    if (workHistory.length > 1)
+      setWorkHistory(workHistory.filter((w) => w.id !== id));
   };
 
   const updateWork = (id: string, field: keyof WorkEntry, value: string) => {
-    setWorkHistory(workHistory.map((w) => (w.id === id ? { ...w, [field]: value } : w)));
+    setWorkHistory(
+      workHistory.map((w) => (w.id === id ? { ...w, [field]: value } : w)),
+    );
   };
 
   const validateStep = (currentStep: number): string | null => {
@@ -226,45 +475,58 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
           return "Add at least one dream company to continue.";
         return null;
       case 1:
-        if (!degree.trim())
-          return "Please enter your degree.";
-        if (!institution.trim())
-          return "Please enter your institution.";
-        if (!graduationYear.trim())
-          return "Please enter your graduation year.";
+        if (!degree.trim()) return "Please enter your degree.";
+        if (!institution.trim()) return "Please enter your institution.";
+        if (!graduationYear.trim()) return "Please enter your graduation year.";
         return null;
       case 2: {
+        if (isFresher) return null;
+
         let filledCount = 0;
         const currentYear = new Date().getFullYear();
-        
+
         for (const entry of workHistory) {
-          const isFilled = entry.jobTitle.trim() || entry.company.trim() || entry.from.trim() || entry.to.trim();
+          const isFilled =
+            entry.jobTitle.trim() ||
+            entry.company.trim() ||
+            entry.from.trim() ||
+            entry.to.trim();
           if (!isFilled) continue;
-          
+
           filledCount++;
-          
+
           if (!entry.jobTitle.trim() || !entry.company.trim()) {
             return "Please provide both job title and company for all work entries.";
           }
 
           if (entry.from.trim()) {
             const startYearMatch = entry.from.match(/\b(19|20)\d{2}\b/);
-            if (!startYearMatch) return "Please include a valid year (e.g., 2020) in the 'From' field.";
-            
+            if (!startYearMatch)
+              return "Please include a valid year (e.g., 2020) in the 'From' field.";
+
             const startYear = parseInt(startYearMatch[0], 10);
-            if (startYear > currentYear) return `Start year (${startYear}) cannot be in the future.`;
-            if (startYear < 1950) return `Start year (${startYear}) is unrealistic.`;
+            if (startYear > currentYear)
+              return `Start year (${startYear}) cannot be in the future.`;
+            if (startYear < 1950)
+              return `Start year (${startYear}) is unrealistic.`;
 
             if (entry.to.trim()) {
-              const isPresent = entry.to.toLowerCase() === "present" || entry.to.toLowerCase() === "current";
+              const isPresent =
+                entry.to.toLowerCase() === "present" ||
+                entry.to.toLowerCase() === "current";
               const endYearMatch = entry.to.match(/\b(19|20)\d{2}\b/);
-              
-              if (!endYearMatch && !isPresent) return "Please include a valid year or 'Present' in the 'To' field.";
-              
-              const endYear = endYearMatch ? parseInt(endYearMatch[0], 10) : currentYear;
-              
-              if (!isPresent && endYear > currentYear) return `End year (${endYear}) cannot be in the future.`;
-              if (endYear < startYear) return `End year (${endYear}) must be greater than or equal to start year (${startYear}).`;
+
+              if (!endYearMatch && !isPresent)
+                return "Please include a valid year or 'Present' in the 'To' field.";
+
+              const endYear = endYearMatch
+                ? parseInt(endYearMatch[0], 10)
+                : currentYear;
+
+              if (!isPresent && endYear > currentYear)
+                return `End year (${endYear}) cannot be in the future.`;
+              if (endYear < startYear)
+                return `End year (${endYear}) must be greater than or equal to start year (${startYear}).`;
             }
           }
         }
@@ -272,7 +534,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
         if (filledCount === 0) {
           return "Add at least one work entry with job title and company.";
         }
-        
+
         return null;
       }
       case 3:
@@ -321,7 +583,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
       graduationYear,
       coursework,
       certifications,
-      workHistory,
+      workHistory: isFresher ? [] : workHistory,
       technicalSkills,
       softSkills,
       interviewFears: fears,
@@ -330,20 +592,25 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
     };
     try {
       await onSave(profile);
-      toast({ title: "Profile saved!", description: "Your Career DNA is ready." });
+      toast({
+        title: "Profile saved!",
+        description: "Your Career DNA is ready.",
+      });
       navigate("/dashboard");
     } catch (error) {
       toast({
         title: "Unable to save profile",
-        description: error instanceof Error ? error.message : "Please try again.",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const filteredTechOptions = PREDEFINED_TECH_SKILLS.filter(opt => 
-    opt.toLowerCase().includes(techQuery.toLowerCase()) && 
-    !technicalSkills.some(s => s.name.toLowerCase() === opt.toLowerCase())
+  const filteredTechOptions = PREDEFINED_TECH_SKILLS.filter(
+    (opt) =>
+      opt.toLowerCase().includes(techQuery.toLowerCase()) &&
+      !technicalSkills.some((s) => s.name.toLowerCase() === opt.toLowerCase()),
   );
 
   const progress = ((step + 1) / STEPS.length) * 100;
@@ -352,8 +619,12 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold gradient-text mb-2">Build Your Career DNA</h1>
-          <p className="text-muted-foreground text-sm">Step {step + 1} of {STEPS.length}: {STEPS[step]}</p>
+          <h1 className="text-2xl font-bold gradient-text mb-2">
+            Build Your Career DNA
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Step {step + 1} of {STEPS.length}: {STEPS[step]}
+          </p>
           <div className="w-full bg-secondary rounded-full h-2 mt-3">
             <div
               className="h-2 rounded-full gradient-primary transition-all duration-500"
@@ -376,19 +647,37 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                 <>
                   <div>
                     <Label>Full Name</Label>
-                    <Input value={user.name} disabled className="mt-1 bg-secondary/50" />
+                    <Input
+                      value={user.name}
+                      disabled
+                      className="mt-1 bg-secondary/50"
+                    />
                   </div>
                   <div>
                     <Label>Email</Label>
-                    <Input value={user.email} disabled className="mt-1 bg-secondary/50" />
+                    <Input
+                      value={user.email}
+                      disabled
+                      className="mt-1 bg-secondary/50"
+                    />
                   </div>
                   <div>
                     <Label>Target Job Roles</Label>
-                    <SearchableMultiSelect options={PREDEFINED_ROLES} selected={targetRoles} onChange={setTargetRoles} placeholder="Search for a role..." />
+                    <SearchableMultiSelect
+                      options={PREDEFINED_ROLES}
+                      selected={targetRoles}
+                      onChange={setTargetRoles}
+                      placeholder="Search for a role..."
+                    />
                   </div>
                   <div>
                     <Label>Dream Companies</Label>
-                    <SearchableMultiSelect options={PREDEFINED_COMPANIES} selected={dreamCompanies} onChange={setDreamCompanies} placeholder="Search for a company..." />
+                    <SearchableMultiSelect
+                      options={PREDEFINED_COMPANIES}
+                      selected={dreamCompanies}
+                      onChange={setDreamCompanies}
+                      placeholder="Search for a company..."
+                    />
                   </div>
                 </>
               )}
@@ -398,52 +687,151 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Degree</Label>
-                      <Input value={degree} onChange={(e) => setDegree(e.target.value)} className="mt-1 bg-secondary/50" />
+                      <Input
+                        value={degree}
+                        onChange={(e) => setDegree(e.target.value)}
+                        className="mt-1 bg-secondary/50"
+                      />
                     </div>
                     <div>
                       <Label>Institution</Label>
-                      <Input value={institution} onChange={(e) => setInstitution(e.target.value)} className="mt-1 bg-secondary/50" />
+                      <Input
+                        value={institution}
+                        onChange={(e) => setInstitution(e.target.value)}
+                        className="mt-1 bg-secondary/50"
+                      />
                     </div>
                   </div>
                   <div>
                     <Label>Graduation Year</Label>
-                    <Input value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} className="mt-1 bg-secondary/50" />
+                    <Input
+                      value={graduationYear}
+                      onChange={(e) => setGraduationYear(e.target.value)}
+                      className="mt-1 bg-secondary/50"
+                    />
                   </div>
                   <div>
                     <Label>Relevant Coursework</Label>
-                    <Textarea value={coursework} onChange={(e) => setCoursework(e.target.value)} className="mt-1 bg-secondary/50" />
+                    <Textarea
+                      value={coursework}
+                      onChange={(e) => setCoursework(e.target.value)}
+                      className="mt-1 bg-secondary/50"
+                    />
                   </div>
                   <div>
                     <Label>Certifications</Label>
-                    <TagInput tags={certifications} onChange={setCertifications} placeholder="e.g. AWS Certified" />
+                    <TagInput
+                      tags={certifications}
+                      onChange={setCertifications}
+                      placeholder="e.g. AWS Certified"
+                    />
                   </div>
                 </>
               )}
 
               {step === 2 && (
                 <>
-                  {workHistory.map((entry, idx) => (
-                    <div key={entry.id} className="p-4 rounded-xl bg-secondary/30 border border-border space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Experience {idx + 1}</span>
-                        {workHistory.length > 1 && (
-                          <Button variant="ghost" size="sm" onClick={() => removeWorkEntry(entry.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <SearchableInput options={PREDEFINED_ROLES} placeholder="Job Title" value={entry.jobTitle} onChange={(v) => updateWork(entry.id, "jobTitle", v)} className="bg-secondary/50" />
-                        <SearchableInput options={PREDEFINED_COMPANIES} placeholder="Company" value={entry.company} onChange={(v) => updateWork(entry.id, "company", v)} className="bg-secondary/50" />
-                        <Input placeholder="From (e.g. 2020)" value={entry.from} onChange={(e) => updateWork(entry.id, "from", e.target.value)} className="bg-secondary/50" />
-                        <Input placeholder="To (e.g. 2023 or Present)" value={entry.to} onChange={(e) => updateWork(entry.id, "to", e.target.value)} className="bg-secondary/50" />
-                      </div>
-                      <Textarea placeholder="Key responsibilities..." value={entry.responsibilities} onChange={(e) => updateWork(entry.id, "responsibilities", e.target.value)} className="bg-secondary/50" />
+                  {/* FRESHER CHECKBOX MODULE */}
+                  <div className="flex items-center space-x-2 pb-4 border-b border-border">
+                    <Checkbox
+                      id="fresher-toggle"
+                      checked={isFresher}
+                      onCheckedChange={(checked) => setIsFresher(!!checked)}
+                    />
+                    <label
+                      htmlFor="fresher-toggle"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      I am a fresher / No prior experience
+                    </label>
+                  </div>
+                  {/* CONDITIONALLY HIDE/SHOW WORK EXPERIENCE FORM BASED ON THE FRESHER STATE */}
+                  {!isFresher ? (
+                    <>
+                      {workHistory.map((entry, idx) => (
+                        <div
+                          key={entry.id}
+                          className="p-4 rounded-xl bg-secondary/30 border border-border space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              Experience {idx + 1}
+                            </span>
+                            {workHistory.length > 1 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeWorkEntry(entry.id)}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <SearchableInput
+                              options={PREDEFINED_ROLES}
+                              placeholder="Job Title"
+                              value={entry.jobTitle}
+                              onChange={(v) =>
+                                updateWork(entry.id, "jobTitle", v)
+                              }
+                              className="bg-secondary/50"
+                            />
+                            <SearchableInput
+                              options={PREDEFINED_COMPANIES}
+                              placeholder="Company"
+                              value={entry.company}
+                              onChange={(v) =>
+                                updateWork(entry.id, "company", v)
+                              }
+                              className="bg-secondary/50"
+                            />
+                            <Input
+                              placeholder="From (e.g. 2020)"
+                              value={entry.from}
+                              onChange={(e) =>
+                                updateWork(entry.id, "from", e.target.value)
+                              }
+                              className="bg-secondary/50"
+                            />
+                            <Input
+                              placeholder="To (e.g. 2023 or Present)"
+                              value={entry.to}
+                              onChange={(e) =>
+                                updateWork(entry.id, "to", e.target.value)
+                              }
+                              className="bg-secondary/50"
+                            />
+                          </div>
+                          <Textarea
+                            placeholder="Key responsibilities..."
+                            value={entry.responsibilities}
+                            onChange={(e) =>
+                              updateWork(
+                                entry.id,
+                                "responsibilities",
+                                e.target.value,
+                              )
+                            }
+                            className="bg-secondary/50"
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        variant="outline"
+                        onClick={addWorkEntry}
+                        className="w-full border-dashed"
+                      >
+                        <Plus className="w-4 h-4 mr-2" /> Add Experience
+                      </Button>
+                    </>
+                  ) : (
+                    /* FRIENDLY FALLBACK STATE SHOWN WHEN CHECKED */
+                    <div className="text-center py-10 text-sm text-muted-foreground bg-secondary/10 border border-dashed border-border rounded-xl">
+                      🚀 Fresher profile option active. You can safely proceed
+                      to the next step without adding work details.
                     </div>
-                  ))}
-                  <Button variant="outline" onClick={addWorkEntry} className="w-full border-dashed">
-                    <Plus className="w-4 h-4 mr-2" /> Add Experience
-                  </Button>
+                  )}
                 </>
               )}
 
@@ -459,7 +847,9 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                           setIsTechOpen(true);
                         }}
                         onFocus={() => setIsTechOpen(true)}
-                        onBlur={() => setTimeout(() => setIsTechOpen(false), 200)}
+                        onBlur={() =>
+                          setTimeout(() => setIsTechOpen(false), 200)
+                        }
                         placeholder="Search for a technical skill..."
                         className="bg-secondary/50"
                       />
@@ -472,14 +862,26 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                             transition={{ duration: 0.15 }}
                             className="absolute z-50 w-full mt-1 max-h-60 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none"
                           >
-                            {filteredTechOptions.map(opt => (
+                            {filteredTechOptions.map((opt) => (
                               <div
                                 key={opt}
                                 className="relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
                                 onMouseDown={(e) => {
                                   e.preventDefault();
-                                  if (!technicalSkills.some(s => s.name.toLowerCase() === opt.toLowerCase())) {
-                                    setTechnicalSkills([...technicalSkills, { name: opt, proficiency: "Intermediate" }]);
+                                  if (
+                                    !technicalSkills.some(
+                                      (s) =>
+                                        s.name.toLowerCase() ===
+                                        opt.toLowerCase(),
+                                    )
+                                  ) {
+                                    setTechnicalSkills([
+                                      ...technicalSkills,
+                                      {
+                                        name: opt,
+                                        proficiency: "Intermediate",
+                                      },
+                                    ]);
                                   }
                                   setTechQuery("");
                                   setIsTechOpen(false);
@@ -494,13 +896,17 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                     </div>
                     <div className="space-y-2 mt-3">
                       {technicalSkills.map((skill, idx) => (
-                        <div key={skill.name} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
+                        <div
+                          key={skill.name}
+                          className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30"
+                        >
                           <span className="flex-1 text-sm">{skill.name}</span>
                           <Select
                             value={skill.proficiency}
                             onValueChange={(v) => {
                               const updated = [...technicalSkills];
-                              updated[idx].proficiency = v as SkillEntry["proficiency"];
+                              updated[idx].proficiency =
+                                v as SkillEntry["proficiency"];
                               setTechnicalSkills(updated);
                             }}
                           >
@@ -509,11 +915,21 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Beginner">Beginner</SelectItem>
-                              <SelectItem value="Intermediate">Intermediate</SelectItem>
+                              <SelectItem value="Intermediate">
+                                Intermediate
+                              </SelectItem>
                               <SelectItem value="Expert">Expert</SelectItem>
                             </SelectContent>
                           </Select>
-                          <Button variant="ghost" size="sm" onClick={() => setTechnicalSkills(technicalSkills.filter((_, i) => i !== idx))}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setTechnicalSkills(
+                                technicalSkills.filter((_, i) => i !== idx),
+                              )
+                            }
+                          >
                             <Trash2 className="w-3 h-3 text-destructive" />
                           </Button>
                         </div>
@@ -522,7 +938,12 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                   </div>
                   <div>
                     <Label>Soft Skills</Label>
-                    <SearchableMultiSelect options={PREDEFINED_SOFT_SKILLS} selected={softSkills} onChange={setSoftSkills} placeholder="Search for a soft skill..." />
+                    <SearchableMultiSelect
+                      options={PREDEFINED_SOFT_SKILLS}
+                      selected={softSkills}
+                      onChange={setSoftSkills}
+                      placeholder="Search for a soft skill..."
+                    />
                   </div>
                 </>
               )}
@@ -539,7 +960,11 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                         <Checkbox
                           checked={fears.includes(option)}
                           onCheckedChange={(checked) => {
-                            setFears(checked ? [...fears, option] : fears.filter((f) => f !== option));
+                            setFears(
+                              checked
+                                ? [...fears, option]
+                                : fears.filter((f) => f !== option),
+                            );
                           }}
                         />
                         <span className="text-sm">{option}</span>
@@ -548,7 +973,12 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                   </div>
                   <div className="mt-4">
                     <Label>Anything else you want us to know?</Label>
-                    <Textarea value={fearNotes} onChange={(e) => setFearNotes(e.target.value)} placeholder="Tell us more..." className="mt-1 bg-secondary/50" />
+                    <Textarea
+                      value={fearNotes}
+                      onChange={(e) => setFearNotes(e.target.value)}
+                      placeholder="Tell us more..."
+                      className="mt-1 bg-secondary/50"
+                    />
                   </div>
                 </>
               )}
