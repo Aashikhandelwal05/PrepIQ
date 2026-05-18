@@ -300,12 +300,61 @@ export default function MockInterviewPage({ sessions, attempts, onAddAttempt }: 
       )}
 
       {attempts.length === 0 && !result && (
-        <div className="bg-card border border-border rounded-2xl p-12 text-center shadow-card">
-          <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-1">No mock interviews yet</h3>
-          <p className="text-sm text-muted-foreground">Answer a question above to get AI feedback</p>
+  <div className="bg-card border border-border rounded-2xl p-8 shadow-card text-center relative overflow-hidden">
+    {/* Background glow */}
+    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10 pointer-events-none" />
+
+    <div className="relative z-10">
+      {/* Icon */}
+      <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-6 shadow-glow">
+        <MessageSquare className="w-8 h-8 text-white" />
+      </div>
+
+      {/* Heading */}
+      <h2 className="text-2xl font-bold text-foreground mb-3">
+        Practice Real Interview Scenarios
+      </h2>
+
+      {/* Description */}
+      <p className="text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
+        Simulate technical and behavioral interviews, receive AI-powered feedback,
+        and improve the clarity, confidence, and structure of your answers.
+      </p>
+
+      {/* CTA */}
+      <Button
+        onClick={() => {
+          document.querySelector("textarea")?.scrollIntoView({
+            behavior: "smooth",
+          });
+        }}
+        className="gradient-primary text-primary-foreground px-6"
+      >
+        <MessageSquare className="w-4 h-4 mr-2" />
+        Start Mock Interview
+      </Button>
+
+      {/* Tips */}
+      <div className="grid md:grid-cols-2 gap-3 mt-8">
+        <div className="bg-secondary/30 border border-border rounded-xl p-4 text-sm text-muted-foreground text-left">
+          ✨ Practice behavioral and technical questions
         </div>
-      )}
+
+        <div className="bg-secondary/30 border border-border rounded-xl p-4 text-sm text-muted-foreground text-left">
+          ✨ Receive instant AI-powered feedback
+        </div>
+
+        <div className="bg-secondary/30 border border-border rounded-xl p-4 text-sm text-muted-foreground text-left">
+          ✨ Improve confidence and communication
+        </div>
+
+        <div className="bg-secondary/30 border border-border rounded-xl p-4 text-sm text-muted-foreground text-left">
+          ✨ Track strengths and improvement areas
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
