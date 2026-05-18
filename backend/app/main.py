@@ -1014,6 +1014,97 @@ def delete_job(
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+# ---------------------------------------------------------------------------
+# Question Generation endpoint (no DB required)
+# ---------------------------------------------------------------------------
+
+VALID_ROLES = {
+    "Frontend Developer",
+    "Backend Developer",
+    "Full Stack Developer",
+    "Machine Learning Engineer",
+    "Data Scientist",
+}
+
+VALID_DIFFICULTIES = {"Easy", "Medium", "Hard"}
+
+
+class GenerateQuestionRequest(BaseModel):
+    role: str
+    difficulty: str
+
+
+class GenerateQuestionResponse(BaseModel):
+    question: str
+
+
+@app.post("/api/mock/generate-question", response_model=GenerateQuestionResponse)
+def generate_mock_question(payload: GenerateQuestionRequest) -> GenerateQuestionResponse:
+    if payload.role not in VALID_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}",
+        )
+    if payload.difficulty not in VALID_DIFFICULTIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid difficulty. Must be one of: {', '.join(sorted(VALID_DIFFICULTIES))}",
+        )
+
+    try:
+        response = call_openrouter_json(
+            system_prompt=(
+                "You generate realistic technical and behavioral interview questions. "
+                "Return valid JSON only. Do not include markdown or explanations. "
+                'Use exactly this schema: {"question": "string"}. '
+                "Return only the question text — no numbering, no preamble, no tips."
+            ),
+            user_prompt=(
+                f"Generate one realistic {payload.difficulty}-level interview question "
+                f"for a {payload.role} position. "
+                "Return only the question itself as a JSON object."
+            ),
+        )
+        question_text = str(response.get("question", "")).strip()
+        if not question_text:
+            raise OpenRouterError("Empty question returned")
+        return GenerateQuestionResponse(question=question_text)
+
+    except OpenRouterError:
+        # Curated fallback questions indexed by role + difficulty
+        fallbacks: dict[str, dict[str, str]] = {
+            "Frontend Developer": {
+                "Easy": "What is the difference between `null` and `undefined` in JavaScript?",
+                "Medium": "Explain how React's reconciliation algorithm determines what to re-render.",
+                "Hard": "Design a virtualized list component that renders 100,000 rows without performance degradation.",
+            },
+            "Backend Developer": {
+                "Easy": "What is the difference between SQL and NoSQL databases?",
+                "Medium": "How would you design a rate-limiting middleware for a REST API?",
+                "Hard": "Describe how you would implement distributed transactions across two microservices without two-phase commit.",
+            },
+            "Full Stack Developer": {
+                "Easy": "What happens between a user typing a URL and the page loading in the browser?",
+                "Medium": "How would you handle authentication state across a React SPA and a Node.js API?",
+                "Hard": "Design a real-time collaborative document editor — describe both the frontend state model and the backend sync strategy.",
+            },
+            "Machine Learning Engineer": {
+                "Easy": "What is the difference between supervised and unsupervised learning?",
+                "Medium": "How would you handle class imbalance in a binary classification problem?",
+                "Hard": "Describe how you would architect an end-to-end MLOps pipeline for a model serving 10M predictions per day.",
+            },
+            "Data Scientist": {
+                "Easy": "What is the purpose of cross-validation in model evaluation?",
+                "Medium": "Explain the bias-variance tradeoff and how it guides your choice of model complexity.",
+                "Hard": "You suspect multicollinearity in your regression model. Walk through how you'd detect it and what you'd do.",
+            },
+        }
+        fallback_q = fallbacks.get(payload.role, {}).get(
+            payload.difficulty,
+            "Tell me about a challenging technical problem you solved and how you approached it.",
+        )
+        return GenerateQuestionResponse(question=fallback_q)
+
 
 # ---------------------------------------------------------------------------
 # ML/NLP endpoints
