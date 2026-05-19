@@ -27,7 +27,7 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
 
   const completionPercent = profile?.onboardingComplete ? 100 : 0;
   const avgScore = mocks.length
-    ? Math.round(mocks.reduce((s, m) => s + m.aiScore, 0) / mocks.length)
+    ? Math.round(mocks.reduce((s, m) => s + m.aiScore * 10, 0) / mocks.length)
     : 0;
 
   const recentSessions = sessions.slice(-3).reverse();
