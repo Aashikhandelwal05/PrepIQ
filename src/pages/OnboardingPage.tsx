@@ -419,7 +419,12 @@ export default function OnboardingPage({
   const [graduationYear, setGraduationYear] = useState("");
   const [coursework, setCoursework] = useState("");
   const [certifications, setCertifications] = useState<string[]>([]);
-  const [isFresher, setIsFresher] = useState(false);
+  const [isFresher, setIsFresher] = useState(() => {
+  if (profile && profile.workHistory) {
+    return profile.workHistory.length === 0;
+  }
+  return false;
+});
   const [workHistory, setWorkHistory] = useState<WorkEntry[]>([
     emptyWorkEntry(),
   ]);
