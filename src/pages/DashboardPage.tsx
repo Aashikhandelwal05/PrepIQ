@@ -170,7 +170,7 @@ export default function DashboardPage({
               title="Start Your Interview Journey"
               description="Get AI-powered interview preparation, personalized feedback, and track your readiness over time."
               buttonText="Start First Prep Session"
-              onButtonClick={() => navigate("/interview-prep")}
+              onClick={() => navigate("/interview-prep")}
               tips={[
                 "Practice technical and behavioral interview questions",
                 "Get instant AI feedback after every session",
@@ -222,7 +222,7 @@ export default function DashboardPage({
               title="Track Your Job Applications"
               description="Organize internship and job applications, monitor statuses, and stay on top of your opportunities."
               buttonText="Add First Application"
-              onButtonClick={() => navigate("/job-tracker")}
+              onClick={() => navigate("/job-tracker")}
               tips={[
                 "Track every application in one place",
                 "Monitor interview and offer progress",

@@ -1,7 +1,7 @@
 import { useState, KeyboardEvent, ClipboardEvent } from "react";
 import { X } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 interface TagInputProps {
   tags: string[];
@@ -19,13 +19,15 @@ export function TagInput({
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && input.trim()) {
       e.preventDefault();
-<<<<<<< HEAD
-     if (!tags.some((t) => t.toLowerCase() === input.trim().toLowerCase())) {
-=======
 
-      if (!tags.includes(input.trim())) {
->>>>>>> 88d316d (Improve onboarding empty states across dashboard modules)
-        onChange([...tags, input.trim()]);
+      const trimmedInput = input.trim();
+
+      const alreadyExists = tags.some(
+        (tag) => tag.toLowerCase() === trimmedInput.toLowerCase()
+      );
+
+      if (!alreadyExists) {
+        onChange([...tags, trimmedInput]);
       }
 
       setInput("");
@@ -35,26 +37,29 @@ export function TagInput({
       onChange(tags.slice(0, -1));
     }
   };
+
   const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
-  e.preventDefault();
-  const pasted = e.clipboardData.getData("text");
-  
-  const newTags = pasted
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);  // removes empty strings
-  
-  const existingLower = tags.map((t) => t.toLowerCase());
-  
-  const unique = newTags.filter(
-    (t) => !existingLower.includes(t.toLowerCase())
-  );
-  
-  if (unique.length > 0) {
-    onChange([...tags, ...unique]);
-  }
-  setInput("");
-};
+    e.preventDefault();
+
+    const pasted = e.clipboardData.getData("text");
+
+    const newTags = pasted
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const existingLower = tags.map((t) => t.toLowerCase());
+
+    const unique = newTags.filter(
+      (t) => !existingLower.includes(t.toLowerCase())
+    );
+
+    if (unique.length > 0) {
+      onChange([...tags, ...unique]);
+    }
+
+    setInput("");
+  };
 
   return (
     <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border border-input bg-secondary/50 min-h-[48px]">
@@ -72,27 +77,15 @@ export function TagInput({
           />
         </Badge>
       ))}
-<<<<<<< HEAD
+
       <Input
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        onPaste={handlePaste} 
+        onPaste={handlePaste}
         placeholder={tags.length === 0 ? placeholder : ""}
         className="flex-1 min-w-[120px] border-0 bg-transparent p-0 h-auto focus-visible:ring-0 text-sm"
       />
-=======
-
-      <div className="flex-1 min-w-[180px]">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={tags.length === 0 ? placeholder : ""}
-          className="w-full bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground"
-        />
-      </div>
->>>>>>> 88d316d (Improve onboarding empty states across dashboard modules)
     </div>
   );
 }
