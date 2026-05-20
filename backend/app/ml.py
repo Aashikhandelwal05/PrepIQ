@@ -102,7 +102,7 @@ def extract_skills(text: str) -> list[str]:
     normalized_text = re.sub(r'[-_/]', ' ', text_lower)
     normalized_text = re.sub(r'\s+', ' ', normalized_text).strip()
 
-    
+
     # Method 1: Keyword matching against curated skill list
     for skill in sorted(TECH_SKILLS, key=len, reverse=True):
         # Multi-word skills need safer boundary handling
@@ -120,7 +120,7 @@ def extract_skills(text: str) -> list[str]:
             found_skills.add(
                 skill.title() if len(skill) > 3 else skill.upper()
             )
-            
+
     # Method 2: spaCy NER to catch additional entities
     nlp = _get_spacy()
     if nlp:
@@ -213,7 +213,7 @@ def analyze_confidence(answer_text: str) -> dict[str, Any]:
         from textblob import TextBlob
         blob = TextBlob(answer_text)
         polarity = blob.sentiment.polarity        # -1.0 to 1.0
-        subjectivity = blob.sentiment.subjectivity  # 0.0 to 1.0
+
     except Exception as exc:
         logger.warning("TextBlob sentiment analysis failed: %s", exc)
 

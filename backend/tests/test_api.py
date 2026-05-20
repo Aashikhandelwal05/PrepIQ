@@ -5,7 +5,6 @@ import unittest
 from pathlib import Path
 from uuid import uuid4
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEST_DB_PATH = REPO_ROOT / "backend" / "test-ci.db"
 sys.path.insert(0, str(REPO_ROOT))
@@ -14,9 +13,8 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 os.environ["APP_SECRET"] = "ci-test-secret"
 os.environ["CORS_ORIGINS"] = "http://localhost:8080,http://127.0.0.1:8080"
 
-from fastapi.testclient import TestClient
-
 from backend.app.main import app
+from fastapi.testclient import TestClient
 
 
 class PrepIQApiTestCase(unittest.TestCase):
@@ -95,7 +93,7 @@ class PrepIQApiTestCase(unittest.TestCase):
         self.assertIsInstance(payload["skills"], list)
         self.assertEqual(payload["count"], len(payload["skills"]))
         self.assertIn("Python", payload["skills"])
-    
+
     def test_extract_skills_endpoint_returns_multiword_skills(self) -> None:
         from backend.app import ml
 
@@ -196,6 +194,7 @@ class PrepIQApiTestCase(unittest.TestCase):
 
     def test_expired_token_returns_401(self) -> None:
         from datetime import timedelta
+
         from backend.app.main import encode_token, utc_now
 
         user_id, _ = self.create_account()

@@ -9,19 +9,29 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Any, Literal
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text, create_engine, delete, func, select
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Integer,
+    String,
+    Text,
+    create_engine,
+    delete,
+    func,
+    select,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from .ml import analyze_confidence, compute_match_score, extract_skills
-
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +194,7 @@ def decode_token(token: str) -> dict[str, Any]:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     padding = "=" * (-len(payload_b64) % 4)
-    payload = json.loads(base64.urlsafe_b64decode(f"{payload_b64}{padding}".encode("utf-8")).decode("utf-8"))
+    payload = json.loads(base64.urlsafe_b64decode(f"{payload_b64}{padding}".encode()).decode("utf-8"))
     if payload.get("exp", 0) < int(utc_now().timestamp()):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
     return payload

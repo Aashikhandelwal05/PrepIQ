@@ -3,7 +3,7 @@ pydantic>=2.0
 uvicorn==0.34.0
 sqlalchemy==2.0.39
 psycopg[binary]==3.2.6
-spacy==3.7.6
+# spacy==3.7.6  # Commented out due to build issues on Windows; CI uses Ubuntu where it works
 scikit-learn==1.5.2
 textblob==0.18.0
 httpx

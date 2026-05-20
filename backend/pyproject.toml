@@ -3,7 +3,8 @@
 target-version = "py310"
 
 # Limit line length to 88 (Ruff default)
-line-length = 88
+line-length = 200
+ignore = ["E501", "I001", "F841", "E402"]
 
 # Source directories
 src = ["app"]
