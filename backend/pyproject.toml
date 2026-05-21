@@ -3,7 +3,7 @@
 target-version = "py310"
 
 # Limit line length to 88 (Ruff default)
-line-length = 200
+line-length = 88
 
 
 # Source directories
