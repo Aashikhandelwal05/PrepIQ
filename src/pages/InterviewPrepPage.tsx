@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, Loader2, Search, Brain, Cpu } from "lucide-react";
+import { BookOpen, Loader2, Search, Brain, Cpu, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
+import { apiUpload } from "@/lib/api";
 import {
   CreateInterviewSessionInput,
   InterviewSession,
@@ -21,6 +22,8 @@ interface InterviewPrepPageProps {
   onAddSession: (input: CreateInterviewSessionInput) => Promise<InterviewSession>;
   userId: string;
 }
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 export default function InterviewPrepPage({
   sessions,
@@ -37,6 +40,10 @@ export default function InterviewPrepPage({
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [diffFilter, setDiffFilter] = useState<string>("all");
   const [selectedJobId, setSelectedJobId] = useState("");
+  const [uploadingJd, setUploadingJd] = useState(false);
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const jdFileRef = useRef<HTMLInputElement>(null);
+  const resumeFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleImportJob = (jobId: string) => {
@@ -49,6 +56,54 @@ export default function InterviewPrepPage({
     setJobTitle(selectedJob.jobTitle);
     setCompany(selectedJob.companyName);
     setJd(selectedJob.notes || "");
+  };
+
+  const handleFileUpload = async (
+    file: File,
+    setFieldValue: (value: string) => void,
+    setUploading: (value: boolean) => void,
+  ) => {
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        title: "File too large",
+        description: `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Maximum allowed size is 5 MB.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext !== "pdf" && ext !== "docx") {
+      toast({
+        title: "Unsupported file type",
+        description: "Only .pdf and .docx files are accepted.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await apiUpload<{ text: string; filename: string; pages: number }>(
+        "/api/extract-document-text",
+        formData,
+      );
+      setFieldValue(result.text);
+      toast({
+        title: "Text extracted successfully",
+        description: `Extracted from "${result.filename}" (${result.pages} page${result.pages !== 1 ? "s" : ""}).`,
+      });
+    } catch (error) {
+      toast({
+        title: "Extraction failed",
+        description: error instanceof Error ? error.message : "Could not extract text from the file.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,12 +188,72 @@ export default function InterviewPrepPage({
               </div>
             </div>
             <div>
-              <Label>Job Description</Label>
-              <Textarea value={jd} onChange={(e) => setJd(e.target.value)} rows={4} className="mt-1 bg-secondary/50" placeholder="Paste the job description..." />
+              <div className="flex items-center justify-between mb-1">
+                <Label>Job Description</Label>
+                <div>
+                  <input
+                    ref={jdFileRef}
+                    type="file"
+                    accept=".pdf,.docx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file, setJd, setUploadingJd);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingJd}
+                    onClick={() => jdFileRef.current?.click()}
+                    className="h-7 text-xs gap-1.5"
+                  >
+                    {uploadingJd ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Upload className="w-3 h-3" />
+                    )}
+                    {uploadingJd ? "Extracting..." : "Upload PDF/DOCX"}
+                  </Button>
+                </div>
+              </div>
+              <Textarea value={jd} onChange={(e) => setJd(e.target.value)} rows={4} className="bg-secondary/50" placeholder="Paste the job description or upload a file..." />
             </div>
             <div>
-              <Label>Your Resume</Label>
-              <Textarea value={resume} onChange={(e) => setResume(e.target.value)} rows={4} className="mt-1 bg-secondary/50" placeholder="Paste your resume content..." />
+              <div className="flex items-center justify-between mb-1">
+                <Label>Your Resume</Label>
+                <div>
+                  <input
+                    ref={resumeFileRef}
+                    type="file"
+                    accept=".pdf,.docx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file, setResume, setUploadingResume);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingResume}
+                    onClick={() => resumeFileRef.current?.click()}
+                    className="h-7 text-xs gap-1.5"
+                  >
+                    {uploadingResume ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Upload className="w-3 h-3" />
+                    )}
+                    {uploadingResume ? "Extracting..." : "Upload PDF/DOCX"}
+                  </Button>
+                </div>
+              </div>
+              <Textarea value={resume} onChange={(e) => setResume(e.target.value)} rows={4} className="bg-secondary/50" placeholder="Paste your resume content or upload a file..." />
             </div>
             <div className="flex gap-3">
               <Button type="submit" disabled={loading} className="gradient-primary text-primary-foreground">

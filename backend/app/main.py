@@ -4,6 +4,7 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import io
 import json
 import logging
 import os
@@ -17,11 +18,13 @@ import httpx
 from fastapi import (
     Depends,
     FastAPI,
+    File,
     Header,
     HTTPException,
     Query,
     Request,
     Response,
+    UploadFile,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
@@ -1562,3 +1565,89 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
 def ml_analyze_confidence(payload: ConfidenceRequest) -> ConfidenceAnalysis:
     result = analyze_confidence(payload.text)
     return ConfidenceAnalysis(**result)
+
+
+# ---------------------------------------------------------------------------
+# Document text extraction endpoint (Issue #93)
+# ---------------------------------------------------------------------------
+
+ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+class ExtractDocumentTextResponse(BaseModel):
+    text: str
+    filename: str
+    pages: int
+
+
+@app.post("/api/extract-document-text", response_model=ExtractDocumentTextResponse)
+async def extract_document_text(file: UploadFile = File(...)) -> ExtractDocumentTextResponse:
+    """Extract text from an uploaded PDF or DOCX file (in-memory only)."""
+
+    filename = file.filename or "unknown"
+    ext = os.path.splitext(filename)[1].lower()
+
+    # Validate file extension
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported file type '{ext}'. Only .pdf and .docx files are accepted.",
+        )
+
+    # Validate MIME type
+    content_type = (file.content_type or "").lower()
+    if content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid MIME type '{content_type}'. Expected PDF or DOCX.",
+        )
+
+    # Read file into memory and validate size
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_FILE_SIZE_BYTES:
+        size_mb = len(file_bytes) / (1024 * 1024)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"File too large ({size_mb:.1f} MB). Maximum allowed size is 5 MB.",
+        )
+
+    try:
+        if ext == ".pdf":
+            import pdfplumber
+
+            pages_text: list[str] = []
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                page_count = len(pdf.pages)
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        pages_text.append(text)
+            extracted = "\n\n".join(pages_text)
+
+        else:  # .docx
+            from docx import Document
+
+            doc = Document(io.BytesIO(file_bytes))
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            extracted = "\n".join(paragraphs)
+            page_count = max(1, len(paragraphs) // 25)  # Approximate page count
+
+    except Exception as exc:
+        logger.warning("Document extraction failed for '%s': %s", filename, exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Failed to extract text from '{filename}'. The file may be corrupted or password-protected.",
+        ) from exc
+
+    if not extracted.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"No text content found in '{filename}'. The file may contain only images or be empty.",
+        )
+
+    return ExtractDocumentTextResponse(text=extracted.strip(), filename=filename, pages=page_count)
