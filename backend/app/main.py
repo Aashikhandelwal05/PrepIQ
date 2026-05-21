@@ -1,6 +1,5 @@
-
 from __future__ import annotations
- 
+
 import asyncio
 import base64
 import hashlib
@@ -13,7 +12,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 from uuid import uuid4
- 
+
 import httpx
 from fastapi import (
     Depends,
@@ -40,17 +39,17 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
- 
+
 from .ml import analyze_confidence, compute_match_score, extract_skills
- 
+
 logger = logging.getLogger(__name__)
- 
- 
+
+
 def load_local_env() -> None:
     env_path = os.getenv("PREPIQ_ENV_FILE", ".env")
     if not os.path.exists(env_path):
         return
- 
+
     with open(env_path, encoding="utf-8") as env_file:
         for raw_line in env_file:
             line = raw_line.strip()
@@ -58,15 +57,15 @@ def load_local_env() -> None:
                 continue
             key, value = line.split("=", 1)
             os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
- 
- 
+
+
 load_local_env()
- 
+
 # Environments where SQLite and insecure defaults are explicitly permitted.
 # Any value not in this set is treated as production-like and requires real config.
 _LOCAL_ENVS = {"development", "dev", "test", "local"}
 APP_ENV = os.getenv("APP_ENV", "development").lower()
- 
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     if APP_ENV not in _LOCAL_ENVS:
@@ -82,7 +81,7 @@ if not DATABASE_URL:
         "DATABASE_URL not set. Falling back to local SQLite: "
         "'sqlite:///./local.db'. Do NOT use this in production."
     )
- 
+
 _APP_SECRET_DEFAULT = "change-me-in-production"
 APP_SECRET = os.getenv("APP_SECRET", _APP_SECRET_DEFAULT)
 if APP_SECRET in {_APP_SECRET_DEFAULT, ""}:
@@ -95,7 +94,7 @@ if APP_SECRET in {_APP_SECRET_DEFAULT, ""}:
         "APP_SECRET is set to the insecure default. "
         "Tokens can be forged by anyone. Do NOT use this in production."
     )
- 
+
 ACCESS_TOKEN_TTL_HOURS = int(os.getenv("ACCESS_TOKEN_TTL_HOURS", "168"))
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 if not OPENROUTER_API_KEY and APP_ENV not in _LOCAL_ENVS:
@@ -112,7 +111,7 @@ OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "PrepIQ")
 OPENROUTER_TIMEOUT_SECONDS = float(os.getenv("OPENROUTER_TIMEOUT_SECONDS", "30"))
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
- 
+
 CORS_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
@@ -120,19 +119,19 @@ CORS_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
- 
+
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, future=True, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
- 
- 
+
+
 class Base(DeclarativeBase):
     pass
- 
- 
+
+
 class UserTable(Base):
     __tablename__ = "users"
- 
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
@@ -141,11 +140,11 @@ class UserTable(Base):
         Boolean, default=False, server_default="false"
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
- 
- 
+
+
 class ProfileTable(Base):
     __tablename__ = "profiles"
- 
+
     user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     full_name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255))
@@ -163,11 +162,11 @@ class ProfileTable(Base):
     fear_notes: Mapped[str] = mapped_column(Text)
     onboarding_complete: Mapped[bool] = mapped_column(Boolean)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
- 
- 
+
+
 class InterviewSessionTable(Base):
     __tablename__ = "interview_sessions"
- 
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(36), index=True)
     job_title: Mapped[str] = mapped_column(String(255))
@@ -182,11 +181,11 @@ class InterviewSessionTable(Base):
     extracted_skills: Mapped[list[str]] = mapped_column(JSON, default=list)
     ml_match_score: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
- 
- 
+
+
 class MockAttemptTable(Base):
     __tablename__ = "mock_attempts"
- 
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(String(36), default="")
     user_id: Mapped[str] = mapped_column(String(36), index=True)
@@ -195,11 +194,11 @@ class MockAttemptTable(Base):
     ai_score: Mapped[int] = mapped_column(Integer)
     ai_feedback: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
- 
- 
+
+
 class JobApplicationTable(Base):
     __tablename__ = "job_applications"
- 
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(36), index=True)
     company_name: Mapped[str] = mapped_column(String(255))
@@ -219,21 +218,21 @@ class JobApplicationTable(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
- 
- 
+
+
 class MentorChatSessionTable(Base):
     __tablename__ = "mentor_chat_sessions"
- 
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(36), index=True)
     title: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
- 
- 
+
+
 class MentorChatHistoryTable(Base):
     __tablename__ = "mentor_chat_history"
- 
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str | None] = mapped_column(
         String(36), index=True, nullable=True
@@ -242,24 +241,24 @@ class MentorChatHistoryTable(Base):
     role: Mapped[str] = mapped_column(String(20))
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
- 
- 
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
- 
- 
+
+
 def today_iso() -> str:
     return utc_now().date().isoformat()
- 
- 
+
+
 def get_db() -> Session:
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
- 
- 
+
+
 def encode_token(payload: dict[str, Any]) -> str:
     payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(
         "utf-8"
@@ -269,8 +268,8 @@ def encode_token(payload: dict[str, Any]) -> str:
         APP_SECRET.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256
     ).hexdigest()
     return f"{payload_b64}.{signature}"
- 
- 
+
+
 def decode_token(token: str) -> dict[str, Any]:
     try:
         payload_b64, signature = token.split(".", 1)
@@ -278,7 +277,7 @@ def decode_token(token: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         ) from exc
- 
+
     expected = hmac.new(
         APP_SECRET.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256
     ).hexdigest()
@@ -286,7 +285,7 @@ def decode_token(token: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
- 
+
     padding = "=" * (-len(payload_b64) % 4)
     payload = json.loads(
         base64.urlsafe_b64decode(f"{payload_b64}{padding}".encode()).decode("utf-8")
@@ -296,47 +295,47 @@ def decode_token(token: str) -> dict[str, Any]:
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired"
         )
     return payload
- 
- 
+
+
 def hash_password(password: str, salt: str | None = None) -> str:
     actual_salt = salt or secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), actual_salt.encode("utf-8"), 200_000
     )
     return f"{actual_salt}${base64.b64encode(digest).decode('utf-8')}"
- 
- 
+
+
 def verify_password(password: str, stored_hash: str) -> bool:
     try:
         salt, _ = stored_hash.split("$", 1)
     except ValueError:
         return False
     return hmac.compare_digest(hash_password(password, salt), stored_hash)
- 
- 
+
+
 class User(BaseModel):
     id: str
     name: str
     email: str
     anonymousMode: bool = False
- 
- 
+
+
 class AuthResponse(BaseModel):
     user: User
     token: str
- 
- 
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
- 
- 
+
+
 class SignupRequest(BaseModel):
     name: str
     email: str
     password: str
- 
- 
+
+
 class WorkEntry(BaseModel):
     id: str
     jobTitle: str
@@ -344,15 +343,15 @@ class WorkEntry(BaseModel):
     from_: str = Field(alias="from")
     to: str
     responsibilities: str
- 
+
     model_config = {"populate_by_name": True}
- 
- 
+
+
 class SkillEntry(BaseModel):
     name: str
     proficiency: Literal["Beginner", "Intermediate", "Expert"]
- 
- 
+
+
 class CareerProfile(BaseModel):
     userId: str
     fullName: str
@@ -370,28 +369,28 @@ class CareerProfile(BaseModel):
     interviewFears: list[str]
     fearNotes: str
     onboardingComplete: bool
- 
- 
+
+
 class GapItem(BaseModel):
     skill: str
     have: str
     need: str
     gapLevel: Literal["Low", "Medium", "High"]
- 
- 
+
+
 class QuestionItem(BaseModel):
     question: str
     type: Literal["behavioral", "technical", "situational"]
     difficulty: Literal["easy", "medium", "hard"]
     tip: str
- 
- 
+
+
 class RoadmapDay(BaseModel):
     day: int
     focusArea: str
     tasks: list[str]
- 
- 
+
+
 class InterviewSession(BaseModel):
     id: str
     userId: str
@@ -407,41 +406,41 @@ class InterviewSession(BaseModel):
     extractedSkills: list[str] = []
     mlMatchScore: int = 0
     createdAt: str
- 
- 
+
+
 class CreateInterviewSessionRequest(BaseModel):
     jobTitle: str
     company: str
     jdText: str = ""
     resumeText: str = ""
- 
+
     @field_validator("jobTitle", "company", mode="after")
     @classmethod
     def check_not_empty(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("cannot be empty or whitespace-only")
         return v
- 
- 
+
+
 class ConfidenceAnalysis(BaseModel):
     confidenceScore: int = 0
     sentiment: str = "neutral"
     specificity: int = 0
     wordCount: int = 0
- 
- 
+
+
 class MockFeedback(BaseModel):
     strengths: list[str]
     missing: list[str]
     modelAnswer: str
     oneLineVerdict: str
     confidenceAnalysis: ConfidenceAnalysis = ConfidenceAnalysis()
- 
- 
+
+
 class OpenRouterError(RuntimeError):
     pass
- 
- 
+
+
 class MockAttempt(BaseModel):
     id: str
     sessionId: str
@@ -451,24 +450,24 @@ class MockAttempt(BaseModel):
     aiScore: int
     aiFeedback: MockFeedback
     createdAt: str
- 
- 
+
+
 class CreateMockAttemptRequest(BaseModel):
     sessionId: str = ""
     question: str
     userAnswer: str
- 
- 
+
+
 class PaginatedMockAttempts(BaseModel):
     items: list[MockAttempt]
     total: int
     limit: int
     offset: int
- 
- 
+
+
 JobStatus = Literal["Applied", "Screening", "Interview", "Offer", "Rejected", "Ghosted"]
- 
- 
+
+
 class JobApplication(BaseModel):
     id: str
     userId: str
@@ -487,15 +486,15 @@ class JobApplication(BaseModel):
     linkedPrepSessionId: str | None
     createdAt: str
     updatedAt: str
- 
- 
+
+
 class CreateJobApplicationRequest(BaseModel):
     companyName: str
     jobTitle: str
     jobUrl: str
     status: JobStatus
- 
- 
+
+
 class UpdateJobApplicationRequest(BaseModel):
     companyName: str | None = None
     jobTitle: str | None = None
@@ -510,8 +509,8 @@ class UpdateJobApplicationRequest(BaseModel):
     nextAction: str | None = None
     nextActionDate: str | None = None
     linkedPrepSessionId: str | None = None
- 
- 
+
+
 def user_from_table(user: UserTable) -> User:
     return User(
         id=user.id,
@@ -519,8 +518,8 @@ def user_from_table(user: UserTable) -> User:
         email=user.email,
         anonymousMode=getattr(user, "anonymous_mode", False),
     )
- 
- 
+
+
 def profile_from_table(profile: ProfileTable) -> CareerProfile:
     return CareerProfile(
         userId=profile.user_id,
@@ -540,8 +539,8 @@ def profile_from_table(profile: ProfileTable) -> CareerProfile:
         fearNotes=profile.fear_notes,
         onboardingComplete=profile.onboarding_complete,
     )
- 
- 
+
+
 def session_from_table(session: InterviewSessionTable) -> InterviewSession:
     return InterviewSession(
         id=session.id,
@@ -559,8 +558,8 @@ def session_from_table(session: InterviewSessionTable) -> InterviewSession:
         mlMatchScore=session.ml_match_score or 0,
         createdAt=session.created_at.isoformat(),
     )
- 
- 
+
+
 def mock_from_table(attempt: MockAttemptTable) -> MockAttempt:
     return MockAttempt(
         id=attempt.id,
@@ -572,8 +571,8 @@ def mock_from_table(attempt: MockAttemptTable) -> MockAttempt:
         aiFeedback=attempt.ai_feedback,
         createdAt=attempt.created_at.isoformat(),
     )
- 
- 
+
+
 def job_from_table(job: JobApplicationTable) -> JobApplication:
     return JobApplication(
         id=job.id,
@@ -594,14 +593,14 @@ def job_from_table(job: JobApplicationTable) -> JobApplication:
         createdAt=job.created_at.isoformat(),
         updatedAt=job.updated_at.isoformat(),
     )
- 
- 
+
+
 def stable_number(seed: str, minimum: int, maximum: int) -> int:
     digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
     span = maximum - minimum + 1
     return minimum + (int(digest[:8], 16) % span)
- 
- 
+
+
 async def call_openrouter_json(
     system_prompt: str, user_prompt: str, client: httpx.AsyncClient | None = None
 ) -> dict[str, Any]:
@@ -627,7 +626,7 @@ async def call_openrouter_json(
             "X-Title": OPENROUTER_APP_NAME,
         }
         provider_name = "OpenRouter"
- 
+
     payload = {
         "model": model,
         "response_format": {"type": "json_object"},
@@ -636,7 +635,7 @@ async def call_openrouter_json(
             {"role": "user", "content": user_prompt},
         ],
     }
- 
+
     max_retries = 3
     body = None
     for attempt in range(max_retries + 1):
@@ -649,7 +648,7 @@ async def call_openrouter_json(
                 must_close = True
             else:
                 must_close = False
- 
+
             try:
                 response = await local_client.post(
                     url,
@@ -659,7 +658,7 @@ async def call_openrouter_json(
             finally:
                 if must_close:
                     await local_client.aclose()
- 
+
             if response.status_code in (429, 503):
                 if attempt < max_retries:
                     retry_after = response.headers.get("Retry-After")
@@ -667,7 +666,7 @@ async def call_openrouter_json(
                         backoff = int(retry_after)
                     else:
                         backoff = 2**attempt
- 
+
                     logger.warning(
                         "%s returned status %d. Retrying in %ds (attempt %d/%d)...",
                         provider_name,
@@ -683,7 +682,7 @@ async def call_openrouter_json(
                         f"{provider_name} request failed with status {response.status_code} "
                         f"after {max_retries} retries"
                     )
- 
+
             response.raise_for_status()
             body = response.json()
             break
@@ -693,12 +692,12 @@ async def call_openrouter_json(
             ) from exc
         except httpx.RequestError as exc:
             raise OpenRouterError(f"{provider_name} connection failed: {exc}") from exc
- 
+
     if not body:
         raise OpenRouterError(
             f"{provider_name} request failed to return a response body"
         )
- 
+
     try:
         raw_content = body["choices"][0]["message"]["content"]
         if raw_content is None:
@@ -714,8 +713,8 @@ async def call_openrouter_json(
         raise OpenRouterError(
             f"{provider_name} returned an invalid response format"
         ) from exc
- 
- 
+
+
 async def generate_session_payload(
     job_title: str,
     company: str,
@@ -751,7 +750,7 @@ async def generate_session_payload(
         if not isinstance(response, dict):
             response = {}
         norm_res = {k.lower(): v for k, v in response.items()}
- 
+
         def norm_dict(d, mapping):
             if not isinstance(d, dict):
                 return d
@@ -765,7 +764,7 @@ async def generate_session_payload(
                         break
                 norm[model_k] = val
             return norm
- 
+
         gap_mapping = {
             "skill": ["skill", "name"],
             "have": ["have", "current"],
@@ -783,38 +782,38 @@ async def generate_session_payload(
             "focusArea": ["focusarea", "area", "focus"],
             "tasks": ["tasks", "todo"],
         }
- 
+
         raw_gap = norm_res.get("gapanalysis", [])
         gap_analysis = [
             GapItem(**norm_dict(item, gap_mapping))
             for item in raw_gap
             if isinstance(item, dict)
         ]
- 
+
         readiness_val = norm_res.get("readinessscore", norm_res.get("readiness", 50))
         readiness = max(0, min(100, int(readiness_val)))
- 
+
         raw_questions = norm_res.get("questionbank", [])
         question_bank = [
             QuestionItem(**norm_dict(item, q_mapping))
             for item in raw_questions
             if isinstance(item, dict)
         ]
- 
+
         raw_roadmap = norm_res.get("roadmap", [])
         roadmap = [
             RoadmapDay(**norm_dict(item, roadmap_mapping))
             for item in raw_roadmap
             if isinstance(item, dict)
         ]
- 
+
         if len(roadmap) >= 1 and len(question_bank) >= 1 and len(gap_analysis) >= 1:
             return gap_analysis, readiness, question_bank, roadmap, False
     except (OpenRouterError, KeyError, TypeError, ValueError) as exc:
         logger.warning(
             "Using fallback prep session payload because OpenRouter failed: %s", exc
         )
- 
+
     scores = compute_match_score(resume_text, jd_text)
     readiness = scores["overallScore"]
     gap_analysis = [
@@ -913,8 +912,8 @@ async def generate_session_payload(
     ]
     is_estimated = not resume_text.strip() and not jd_text.strip()
     return gap_analysis, readiness, question_bank, roadmap, is_estimated
- 
- 
+
+
 def _significant_tokens(text: str) -> set[str]:
     stopwords = {
         "the",
@@ -976,8 +975,8 @@ def _significant_tokens(text: str) -> set[str]:
         for token in re.findall(r"\b[a-zA-Z]{3,}\b", text)
         if token.lower() not in stopwords
     }
- 
- 
+
+
 FALLBACK_TECHNICAL_TERMS = {
     "model",
     "data",
@@ -1007,18 +1006,18 @@ FALLBACK_TECHNICAL_TERMS = {
     "regularization",
     "parameter",
 }
- 
- 
+
+
 def _fallback_answer_quality(question: str, answer: str) -> float:
     answer_tokens = _significant_tokens(answer)
     question_tokens = _significant_tokens(question)
- 
+
     overlap = len(question_tokens & answer_tokens) / max(1, len(question_tokens))
     technical_count = sum(
         1 for token in answer_tokens if token in FALLBACK_TECHNICAL_TERMS
     )
     technical_density = min(1.0, technical_count / 4)
- 
+
     explanatory = bool(
         re.search(
             r"\b(?:because|since|therefore|thus|for example|specifically|explain|describe|meaning|understand|understanding)\b",
@@ -1026,19 +1025,19 @@ def _fallback_answer_quality(question: str, answer: str) -> float:
             re.I,
         )
     )
- 
+
     length_score = min(1.0, len(answer_tokens) / 20)
     quality = max(overlap, technical_density * 0.7 + length_score * 0.3)
     if explanatory:
         quality = min(1.0, quality + 0.15)
     return quality
- 
- 
+
+
 async def evaluate_mock_attempt(
     question: str, answer: str, client: httpx.AsyncClient | None = None
 ) -> tuple[int, MockFeedback]:
     confidence = ConfidenceAnalysis(**analyze_confidence(answer))
- 
+
     answer_text = answer.strip()
     answer_words = re.findall(r"\w+", answer_text)
     if (
@@ -1059,7 +1058,7 @@ async def evaluate_mock_attempt(
             oneLineVerdict="Answer was unintelligible or significantly lacking detail.",
             confidenceAnalysis=confidence,
         )
- 
+
     try:
         response = await call_openrouter_json(
             system_prompt=(
@@ -1084,10 +1083,10 @@ async def evaluate_mock_attempt(
         if not isinstance(response, dict):
             response = {}
         norm_res = {k.lower(): v for k, v in response.items()}
- 
+
         score_val = norm_res.get("aiscore", norm_res.get("score", 7))
         score = max(1, min(10, int(score_val)))
- 
+
         strengths = norm_res.get("strengths", ["Attempted to answer"])
         missing = norm_res.get(
             "missing", norm_res.get("areas to improve", norm_res.get("weaknesses", []))
@@ -1101,7 +1100,7 @@ async def evaluate_mock_attempt(
         verdict = norm_res.get(
             "onelineverdict", norm_res.get("verdict", "Basic response submitted.")
         )
- 
+
         feedback = MockFeedback(
             strengths=[str(item) for item in strengths]
             if isinstance(strengths, list)
@@ -1119,12 +1118,12 @@ async def evaluate_mock_attempt(
         logger.warning(
             "Using fallback mock feedback because OpenRouter failed: %s", exc
         )
- 
+
     base_seed = f"{question}|{answer}"
     answer_text = answer.strip()
     answer_words = re.findall(r"\w+", answer_text)
     quality = _fallback_answer_quality(question, answer_text)
- 
+
     if len(answer_words) < 10 or len(answer_text) < 40:
         score = stable_number(base_seed, 1, 3)
         strengths = ["Basic response submitted"]
@@ -1155,7 +1154,7 @@ async def evaluate_mock_attempt(
             score = min(score + 1, 10)
         if len(answer_text) < 120:
             score = max(score - 1, 4)
- 
+
         strengths = [
             "Relevant concepts are referenced",
             "Answer has a reasonable structure",
@@ -1169,7 +1168,7 @@ async def evaluate_mock_attempt(
             if score >= 8
             else "Good structure, but lacked specific examples"
         )
- 
+
     return score, MockFeedback(
         strengths=strengths,
         missing=missing,
@@ -1181,8 +1180,8 @@ async def evaluate_mock_attempt(
         oneLineVerdict=verdict,
         confidenceAnalysis=confidence,
     )
- 
- 
+
+
 def require_current_user(
     user_id: str | None = None,
     authorization: str | None = Header(default=None),
@@ -1193,20 +1192,20 @@ def require_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authorization token",
         )
- 
+
     payload = decode_token(authorization.removeprefix("Bearer ").strip())
     token_user_id = payload.get("sub")
     if user_id is not None and token_user_id != user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
- 
+
     user = db.get(UserTable, token_user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
         )
     return user
- 
- 
+
+
 def validate_payload_size(request: Request) -> None:
     if "content-length" in request.headers:
         length = int(request.headers["content-length"])
@@ -1215,10 +1214,10 @@ def validate_payload_size(request: Request) -> None:
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail="Request entity too large",
             )
- 
- 
+
+
 app = FastAPI(title="PrepIQ Backend", version="2.0.0")
- 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -1226,8 +1225,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
- 
- 
+
+
 @app.on_event("startup")
 async def startup() -> None:
     app.state.httpx_client = httpx.AsyncClient(
@@ -1236,9 +1235,9 @@ async def startup() -> None:
     )
     try:
         Base.metadata.create_all(bind=engine)
- 
+
         from sqlalchemy import text
- 
+
         with engine.begin() as conn:
             try:
                 conn.execute(
@@ -1248,7 +1247,7 @@ async def startup() -> None:
                 )
             except Exception:
                 pass
- 
+
             try:
                 conn.execute(
                     text(
@@ -1257,7 +1256,7 @@ async def startup() -> None:
                 )
             except Exception:
                 pass
- 
+
             try:
                 res = conn.execute(
                     text(
@@ -1296,20 +1295,20 @@ async def startup() -> None:
     except Exception:
         logging.getLogger(__name__).exception("Failed to create database tables")
         raise
- 
- 
+
+
 @app.on_event("shutdown")
 async def shutdown() -> None:
     client = getattr(app.state, "httpx_client", None)
     if client is not None:
         await client.aclose()
- 
- 
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
- 
- 
+
+
 @app.post("/api/auth/login", response_model=AuthResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
     user = db.execute(
@@ -1319,7 +1318,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
- 
+
     token = encode_token(
         {
             "sub": user.id,
@@ -1330,8 +1329,8 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
         }
     )
     return AuthResponse(user=user_from_table(user), token=token)
- 
- 
+
+
 @app.post(
     "/api/auth/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
 )
@@ -1346,7 +1345,7 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthRespons
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid email format",
         )
- 
+
     existing = db.execute(
         select(UserTable).where(UserTable.email == payload.email.lower())
     ).scalar_one_or_none()
@@ -1354,7 +1353,7 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthRespons
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Email already exists"
         )
- 
+
     user = UserTable(
         id=str(uuid4()),
         name=payload.name.strip(),
@@ -1364,7 +1363,7 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthRespons
     )
     db.add(user)
     db.commit()
- 
+
     token = encode_token(
         {
             "sub": user.id,
@@ -1375,13 +1374,13 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthRespons
         }
     )
     return AuthResponse(user=user_from_table(user), token=token)
- 
- 
+
+
 @app.get("/api/auth/me", response_model=User)
 def me(current_user: UserTable = Depends(require_current_user)) -> User:
     return user_from_table(current_user)
- 
- 
+
+
 @app.get("/api/users/{user_id}/profile", response_model=CareerProfile | None)
 def get_profile(
     user_id: str,
@@ -1390,8 +1389,8 @@ def get_profile(
 ) -> CareerProfile | None:
     profile = db.get(ProfileTable, user_id)
     return profile_from_table(profile) if profile else None
- 
- 
+
+
 @app.put("/api/users/{user_id}/profile", response_model=CareerProfile)
 def save_profile(
     user_id: str,
@@ -1403,7 +1402,7 @@ def save_profile(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Profile user mismatch"
         )
- 
+
     payload = profile.model_dump(by_alias=True)
     payload["email"] = user.email
     existing = db.get(ProfileTable, user_id)
@@ -1448,8 +1447,8 @@ def save_profile(
         )
     db.commit()
     return profile
- 
- 
+
+
 @app.get("/api/users/{user_id}/sessions", response_model=list[InterviewSession])
 def get_sessions(
     user_id: str,
@@ -1462,8 +1461,8 @@ def get_sessions(
         .order_by(InterviewSessionTable.created_at.asc())
     ).scalars()
     return [session_from_table(row) for row in rows]
- 
- 
+
+
 @app.get("/api/users/{user_id}/sessions/{session_id}", response_model=InterviewSession)
 def get_session(
     user_id: str,
@@ -1482,8 +1481,8 @@ def get_session(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
     return session_from_table(row)
- 
- 
+
+
 @app.post(
     "/api/users/{user_id}/sessions",
     response_model=InterviewSession,
@@ -1510,11 +1509,11 @@ async def create_session(
         payload.resumeText,
         client=client,
     )
- 
+
     skills = extract_skills(payload.resumeText)
     scores = compute_match_score(payload.resumeText, payload.jdText)
     ml_score = scores["overallScore"]
- 
+
     row = InterviewSessionTable(
         id=str(uuid4()),
         user_id=user_id,
@@ -1534,8 +1533,8 @@ async def create_session(
     db.add(row)
     db.commit()
     return session_from_table(row)
- 
- 
+
+
 @app.delete(
     "/api/users/{user_id}/sessions/{session_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -1557,7 +1556,7 @@ def delete_session(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
- 
+
     db.execute(
         delete(MockAttemptTable).where(
             MockAttemptTable.session_id == session_id,
@@ -1567,8 +1566,8 @@ def delete_session(
     db.delete(session)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
- 
- 
+
+
 @app.get("/api/users/{user_id}/mocks", response_model=PaginatedMockAttempts)
 def get_mock_attempts(
     user_id: str,
@@ -1605,8 +1604,8 @@ def get_mock_attempts(
         limit=limit,
         offset=offset,
     )
- 
- 
+
+
 @app.post(
     "/api/users/{user_id}/mocks",
     response_model=MockAttempt,
@@ -1629,7 +1628,7 @@ async def create_mock_attempt(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Answer must not be empty",
         )
- 
+
     client = getattr(request.app.state, "httpx_client", None)
     score, feedback = await evaluate_mock_attempt(
         payload.question, payload.userAnswer, client=client
@@ -1647,8 +1646,8 @@ async def create_mock_attempt(
     db.add(row)
     db.commit()
     return mock_from_table(row)
- 
- 
+
+
 @app.get("/api/users/{user_id}/jobs", response_model=list[JobApplication])
 def get_jobs(
     user_id: str,
@@ -1661,8 +1660,8 @@ def get_jobs(
         .order_by(JobApplicationTable.created_at.asc())
     ).scalars()
     return [job_from_table(row) for row in rows]
- 
- 
+
+
 @app.post(
     "/api/users/{user_id}/jobs",
     response_model=JobApplication,
@@ -1697,8 +1696,8 @@ def create_job(
     db.add(row)
     db.commit()
     return job_from_table(row)
- 
- 
+
+
 @app.patch("/api/users/{user_id}/jobs/{job_id}", response_model=JobApplication)
 def update_job(
     user_id: str,
@@ -1716,7 +1715,7 @@ def update_job(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job application not found"
         )
- 
+
     field_map = {
         "companyName": "company_name",
         "jobTitle": "job_title",
@@ -1737,8 +1736,8 @@ def update_job(
     job.updated_at = utc_now()
     db.commit()
     return job_from_table(job)
- 
- 
+
+
 @app.delete(
     "/api/users/{user_id}/jobs/{job_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -1760,16 +1759,16 @@ def delete_job(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job application not found"
         )
- 
+
     db.delete(job)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
- 
- 
+
+
 # ---------------------------------------------------------------------------
 # Question Generation endpoint (no DB required)
 # ---------------------------------------------------------------------------
- 
+
 VALID_ROLES = {
     "Frontend Developer",
     "Backend Developer",
@@ -1777,19 +1776,19 @@ VALID_ROLES = {
     "Machine Learning Engineer",
     "Data Scientist",
 }
- 
+
 VALID_DIFFICULTIES = {"Easy", "Medium", "Hard"}
- 
- 
+
+
 class GenerateQuestionRequest(BaseModel):
     role: str
     difficulty: str
- 
- 
+
+
 class GenerateQuestionResponse(BaseModel):
     question: str
- 
- 
+
+
 @app.post(
     "/api/users/{user_id}/mock/generate-question",
     response_model=GenerateQuestionResponse,
@@ -1809,7 +1808,7 @@ async def generate_mock_question(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid difficulty. Must be one of: {', '.join(sorted(VALID_DIFFICULTIES))}",
         )
- 
+
     try:
         response = await call_openrouter_json(
             system_prompt=(
@@ -1828,7 +1827,7 @@ async def generate_mock_question(
         if not question_text:
             raise OpenRouterError("Empty question returned")
         return GenerateQuestionResponse(question=question_text)
- 
+
     except OpenRouterError:
         fallbacks: dict[str, dict[str, str]] = {
             "Frontend Developer": {
@@ -1862,39 +1861,39 @@ async def generate_mock_question(
             "Tell me about a challenging technical problem you solved and how you approached it.",
         )
         return GenerateQuestionResponse(question=fallback_q)
- 
- 
+
+
 # ---------------------------------------------------------------------------
 # ML/NLP endpoints
 # ---------------------------------------------------------------------------
- 
- 
+
+
 class ExtractSkillsRequest(BaseModel):
     text: str
- 
- 
+
+
 class ExtractSkillsResponse(BaseModel):
     skills: list[str]
     count: int
- 
- 
+
+
 class MatchScoreRequest(BaseModel):
     resumeText: str
     jdText: str
- 
- 
+
+
 class MatchScoreResponse(BaseModel):
     score: int
     overallScore: int
     semanticScore: int
     keywordOverlapScore: int
     label: str
- 
- 
+
+
 class ConfidenceRequest(BaseModel):
     text: str
- 
- 
+
+
 @app.post(
     "/api/ml/extract-skills",
     response_model=ExtractSkillsResponse,
@@ -1903,8 +1902,8 @@ class ConfidenceRequest(BaseModel):
 def ml_extract_skills(payload: ExtractSkillsRequest) -> ExtractSkillsResponse:
     skills = extract_skills(payload.text)
     return ExtractSkillsResponse(skills=skills, count=len(skills))
- 
- 
+
+
 @app.post(
     "/api/ml/match-score",
     response_model=MatchScoreResponse,
@@ -1927,8 +1926,8 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
         keywordOverlapScore=scores["keywordOverlapScore"],
         label=label,
     )
- 
- 
+
+
 @app.post(
     "/api/ml/analyze-confidence",
     response_model=ConfidenceAnalysis,
@@ -1937,31 +1936,31 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
 def ml_analyze_confidence(payload: ConfidenceRequest) -> ConfidenceAnalysis:
     result = analyze_confidence(payload.text)
     return ConfidenceAnalysis(**result)
- 
- 
+
+
 class MentorChatSessionModel(BaseModel):
     id: str
     userId: str
     title: str
     createdAt: str
     updatedAt: str
- 
- 
+
+
 class MentorChatSessionUpdate(BaseModel):
     title: str
- 
- 
+
+
 class MentorChatMessage(BaseModel):
     id: str
     role: str
     content: str
     created_at: str
- 
- 
+
+
 class MentorChatRequest(BaseModel):
     message: str
- 
- 
+
+
 @app.get(
     "/api/users/{user_id}/mentor-chat/sessions",
     response_model=list[MentorChatSessionModel],
@@ -1978,7 +1977,7 @@ def get_mentor_chat_sessions(
         .where(MentorChatSessionTable.user_id == user_id)
         .order_by(MentorChatSessionTable.updated_at.desc())
     ).all()
- 
+
     return [
         MentorChatSessionModel(
             id=s.id,
@@ -1989,8 +1988,8 @@ def get_mentor_chat_sessions(
         )
         for s in sessions
     ]
- 
- 
+
+
 @app.post(
     "/api/users/{user_id}/mentor-chat/sessions", response_model=MentorChatSessionModel
 )
@@ -2001,7 +2000,7 @@ def create_mentor_chat_session(
 ) -> MentorChatSessionModel:
     if user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
- 
+
     sid = str(uuid4())
     now_dt = utc_now()
     new_session = MentorChatSessionTable(
@@ -2016,8 +2015,8 @@ def create_mentor_chat_session(
         createdAt=new_session.created_at.isoformat(),
         updatedAt=new_session.updated_at.isoformat(),
     )
- 
- 
+
+
 @app.patch(
     "/api/users/{user_id}/mentor-chat/sessions/{session_id}",
     response_model=MentorChatSessionModel,
@@ -2031,15 +2030,15 @@ def update_mentor_chat_session(
 ) -> MentorChatSessionModel:
     if user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
- 
+
     session = db.get(MentorChatSessionTable, session_id)
     if not session or session.user_id != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
- 
+
     session.title = payload.title
     session.updated_at = utc_now()
     db.commit()
- 
+
     return MentorChatSessionModel(
         id=session.id,
         userId=session.user_id,
@@ -2047,8 +2046,8 @@ def update_mentor_chat_session(
         createdAt=session.created_at.isoformat(),
         updatedAt=session.updated_at.isoformat(),
     )
- 
- 
+
+
 @app.delete("/api/users/{user_id}/mentor-chat/sessions/{session_id}")
 def delete_mentor_chat_session(
     user_id: str,
@@ -2058,11 +2057,11 @@ def delete_mentor_chat_session(
 ) -> dict[str, str]:
     if user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
- 
+
     session = db.get(MentorChatSessionTable, session_id)
     if not session or session.user_id != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
- 
+
     db.execute(
         delete(MentorChatHistoryTable).where(
             MentorChatHistoryTable.session_id == session_id
@@ -2070,10 +2069,10 @@ def delete_mentor_chat_session(
     )
     db.delete(session)
     db.commit()
- 
+
     return {"status": "ok"}
- 
- 
+
+
 @app.get(
     "/api/users/{user_id}/mentor-chat/sessions/{session_id}/messages",
     response_model=list[MentorChatMessage],
@@ -2094,7 +2093,7 @@ def get_mentor_chat_messages(
         )
         .order_by(MentorChatHistoryTable.created_at.asc())
     ).all()
- 
+
     return [
         MentorChatMessage(
             id=msg.id,
@@ -2104,8 +2103,8 @@ def get_mentor_chat_messages(
         )
         for msg in history
     ]
- 
- 
+
+
 @app.post("/api/users/{user_id}/mentor-chat/sessions/{session_id}/messages")
 async def post_mentor_chat_message(
     user_id: str,
@@ -2116,11 +2115,11 @@ async def post_mentor_chat_message(
 ) -> dict[str, str]:
     if user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
- 
+
     session = db.get(MentorChatSessionTable, session_id)
     if not session or session.user_id != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
- 
+
     now_dt = utc_now()
     user_msg_id = str(uuid4())
     user_entry = MentorChatHistoryTable(
@@ -2132,15 +2131,15 @@ async def post_mentor_chat_message(
         created_at=now_dt,
     )
     db.add(user_entry)
- 
+
     if session.title == "New Chat":
         words = payload.message.split()
         title = " ".join(words[:5]) + ("..." if len(words) > 5 else "")
         session.title = title
- 
+
     session.updated_at = now_dt
     db.commit()
- 
+
     history = db.scalars(
         select(MentorChatHistoryTable)
         .where(
@@ -2149,7 +2148,7 @@ async def post_mentor_chat_message(
         )
         .order_by(MentorChatHistoryTable.created_at.asc())
     ).all()
- 
+
     profile_record = db.get(ProfileTable, user_id)
     profile_info = ""
     if profile_record:
@@ -2161,7 +2160,7 @@ async def post_mentor_chat_message(
             f"- Soft Skills: {', '.join(p.softSkills)}\n"
             f"- Dream Companies: {', '.join(p.dreamCompanies)}\n"
         )
- 
+
     system_prompt = (
         "You are PrepIQ AI Mentor, a friendly and professional mentor focused on learning, academics, skill development, interview preparation, and career growth.\n\n"
         "Primary Scope:\n"
@@ -2194,7 +2193,7 @@ async def post_mentor_chat_message(
         "ALWAYS return JSON with a single key 'reply' containing your answer."
     )
     messages_for_llm = [{"role": m.role, "content": m.content} for m in history]
- 
+
     try:
         response_dict = await call_openrouter_json(
             system_prompt=system_prompt, user_prompt=json.dumps(messages_for_llm)
@@ -2207,7 +2206,7 @@ async def post_mentor_chat_message(
         reply_content = (
             "Sorry, I am having trouble connecting to the AI brain right now."
         )
- 
+
     ai_dt = utc_now()
     ai_msg_id = str(uuid4())
     ai_entry = MentorChatHistoryTable(
@@ -2221,14 +2220,14 @@ async def post_mentor_chat_message(
     db.add(ai_entry)
     session.updated_at = ai_dt
     db.commit()
- 
+
     return {"reply": reply_content}
- 
- 
+
+
 class UserPreferencesUpdate(BaseModel):
     anonymousMode: bool
- 
- 
+
+
 @app.patch("/api/users/{user_id}/preferences", response_model=User)
 def update_user_preferences(
     user_id: str,
@@ -2238,21 +2237,21 @@ def update_user_preferences(
 ) -> User:
     if user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
- 
+
     user_record = db.get(UserTable, user_id)
     if not user_record:
         raise HTTPException(status_code=404, detail="User not found")
- 
+
     user_record.anonymous_mode = payload.anonymousMode
     db.commit()
- 
+
     return user_from_table(user_record)
- 
- 
+
+
 class AnonymousChatRequest(BaseModel):
     messages: list[dict[str, str]]
- 
- 
+
+
 @app.post("/api/users/{user_id}/mentor-chat/anonymous")
 async def post_anonymous_chat(
     user_id: str,
@@ -2262,7 +2261,7 @@ async def post_anonymous_chat(
 ) -> dict[str, str]:
     if user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
- 
+
     profile_record = db.get(ProfileTable, user_id)
     profile_info = ""
     if profile_record:
@@ -2274,7 +2273,7 @@ async def post_anonymous_chat(
             f"- Soft Skills: {', '.join(p.softSkills)}\n"
             f"- Dream Companies: {', '.join(p.dreamCompanies)}\n"
         )
- 
+
     system_prompt = (
         "You are PrepIQ AI Mentor, a friendly and professional mentor focused on learning, academics, skill development, interview preparation, and career growth.\n\n"
         "Primary Scope:\n"
@@ -2306,7 +2305,7 @@ async def post_anonymous_chat(
         f"{profile_info}\n"
         "ALWAYS return JSON with a single key 'reply' containing your answer."
     )
- 
+
     try:
         response_dict = await call_openrouter_json(
             system_prompt=system_prompt, user_prompt=json.dumps(payload.messages)
@@ -2319,5 +2318,5 @@ async def post_anonymous_chat(
         reply_content = (
             "Sorry, I am having trouble connecting to the AI brain right now."
         )
- 
+
     return {"reply": reply_content}
