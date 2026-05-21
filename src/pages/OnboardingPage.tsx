@@ -419,12 +419,10 @@ export default function OnboardingPage({
   const [graduationYear, setGraduationYear] = useState("");
   const [coursework, setCoursework] = useState("");
   const [certifications, setCertifications] = useState<string[]>([]);
-  const [isFresher, setIsFresher] = useState(() => {
-  if (profile && profile.workHistory) {
-    return profile.workHistory.length === 0;
-  }
-  return false;
-});
+  
+  // Initialize to false by default, allowing useEffect to handle hydration safely
+  const [isFresher, setIsFresher] = useState(false);
+  
   const [workHistory, setWorkHistory] = useState<WorkEntry[]>([
     emptyWorkEntry(),
   ]);
@@ -435,25 +433,33 @@ export default function OnboardingPage({
   const [fears, setFears] = useState<string[]>([]);
   const [fearNotes, setFearNotes] = useState("");
 
+  /* ✅ FIXED: Correctly compute, sync, and re-sync isFresher state whenever the profile data loads or changes */
   useEffect(() => {
     if (!profile) {
       return;
     }
 
-    setTargetRoles(profile.targetRoles);
-    setDreamCompanies(profile.dreamCompanies);
-    setDegree(profile.degree);
-    setInstitution(profile.institution);
-    setGraduationYear(profile.graduationYear);
-    setCoursework(profile.coursework);
-    setCertifications(profile.certifications);
-    setWorkHistory(
-      profile.workHistory.length > 0 ? profile.workHistory : [emptyWorkEntry()],
-    );
-    setTechnicalSkills(profile.technicalSkills);
-    setSoftSkills(profile.softSkills);
-    setFears(profile.interviewFears);
-    setFearNotes(profile.fearNotes);
+    setTargetRoles(profile.targetRoles || []);
+    setDreamCompanies(profile.dreamCompanies || []);
+    setDegree(profile.degree || "");
+    setInstitution(profile.institution || "");
+    setGraduationYear(profile.graduationYear || "");
+    setCoursework(profile.coursework || "");
+    setCertifications(profile.certifications || []);
+    
+    // Evaluate length metrics dynamically inside the profile watcher dependency array
+    if (profile.workHistory && profile.workHistory.length > 0) {
+      setWorkHistory(profile.workHistory);
+      setIsFresher(false);
+    } else {
+      setWorkHistory([emptyWorkEntry()]);
+      setIsFresher(true);
+    }
+
+    setTechnicalSkills(profile.technicalSkills || []);
+    setSoftSkills(profile.softSkills || []);
+    setFears(profile.interviewFears || []);
+    setFearNotes(profile.fearNotes || "");
   }, [profile]);
 
   const addWorkEntry = () => {
@@ -577,7 +583,7 @@ export default function OnboardingPage({
       return;
     }
 
-    const profile: CareerProfile = {
+    const updatedProfile: CareerProfile = {
       userId: user.id,
       fullName: user.name,
       email: user.email,
@@ -596,7 +602,7 @@ export default function OnboardingPage({
       onboardingComplete: true,
     };
     try {
-      await onSave(profile);
+      await onSave(updatedProfile);
       toast({
         title: "Profile saved!",
         description: "Your Career DNA is ready.",
