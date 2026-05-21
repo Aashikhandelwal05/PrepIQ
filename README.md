@@ -189,6 +189,83 @@ npm run dev
 
 Open [http://localhost:8080](http://localhost:8080) in your browser.
 
+### How the API proxy works
+
+When we run both servers locally, we have **two processes running on different ports**:
+
+| Process | Command | Port |
+|---------|---------|------|
+| Frontend (Vite dev server) | `npm run dev` | `8080` |
+| Backend (FastAPI / Uvicorn) | `python -m uvicorn ...` | `8000` |
+
+Normally, browsers block JavaScript from making requests to a different port — a browser security rule called **CORS**. Vite solves this with a built-in **reverse proxy**: one can think of it like a silent traffic redirector sitting inside the dev server. One does not need to install or configure anything extra — it is already set up.
+
+The proxy rule lives in `vite.config.ts`:
+
+```ts
+proxy: {
+  "/api": {
+    target: "http://127.0.0.1:8000",
+    changeOrigin: true,
+  },
+},
+```
+
+Any request the React code makes to a path starting with `/api` is **automatically forwarded** by Vite to `http://127.0.0.1:8000`. FastAPI receives it as a normal request — it never knows that the browser was on a different port.
+
+```
+Browser (localhost:8080)
+  │
+  │  fetch("/api/auth/me")          ← relative URL, no hostname
+  ▼
+Vite dev server  (port 8080)
+  │
+  │  proxy rule: /api → 127.0.0.1:8000
+  ▼
+FastAPI          (port 8000)       ← receives and handles the request
+```
+
+> **Why `VITE_API_BASE_URL` must be blank for local development**
+>
+> The fetch wrapper in `src/lib/api.ts` prepends `VITE_API_BASE_URL` to every API call before sending it.
+>
+> - When it is **blank**, the URL stays relative: `/api/auth/me`
+>   The browser hands it to Vite → Vite proxies it → FastAPI on port 8000 handles it. ✅
+>
+> - When it is **set** to `http://127.0.0.1:8000`, the URL becomes absolute: `http://127.0.0.1:8000/api/auth/me`
+>   The browser sends it directly, completely bypassing Vite's proxy. The browser's CORS rules then block it, and every API call fails with a network error. ❌
+>
+> **Bottom line: leave `VITE_API_BASE_URL` completely empty in one's `.env` for local development.**
+
+#### In production (Vercel → Render)
+
+When we deploy, there is no Vite dev server running — only a pre-built bundle of static files served by a CDN. At **build time**, Vite permanently replaces every reference to `import.meta.env.VITE_API_BASE_URL` in the code with the actual value we provided. This means every API call in the deployed app becomes an absolute URL that the browser sends directly to the hosted backend, with no proxy involved:
+
+```
+Browser (prepiqfrontend.vercel.app)
+  │
+  │  fetch("https://prepiq-backend-c79d.onrender.com/api/auth/me")
+  │          ↑ full URL baked in at build time from VITE_API_BASE_URL
+  ▼
+Render — FastAPI                   ← browser calls it directly, no proxy
+```
+
+Set `VITE_API_BASE_URL` in the hosting provider's environment variables (Vercel → Project Settings → Environment Variables) to the full Render backend URL. **Do not add a trailing slash.**
+
+```
+VITE_API_BASE_URL=https://prepiq-backend-c79d.onrender.com
+```
+
+> **Note:** Because `VITE_API_BASE_URL` is substituted at build time (not runtime), one must trigger a new Vercel deployment after changing it for the new value to take effect.
+
+#### Quick reference
+
+| Scenario | `VITE_API_BASE_URL` value | How requests reach FastAPI |
+|----------|--------------------------|----------------------------|
+| Local development | *(leave blank)* | Vite proxy: port 8080 → port 8000 |
+| Deployed to Vercel | `https://prepiq-backend-c79d.onrender.com` | Browser → Render directly |
+| Custom deployment | `https://api.yourdomain.com` | Browser → one's backend directly |
+
 ### Docker (optional)
 
 Runs PostgreSQL, backend, and frontend (served via nginx) together:
