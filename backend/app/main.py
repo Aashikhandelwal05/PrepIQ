@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -10,10 +11,9 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
-from urllib.error import HTTPError, URLError
-from urllib.request import Request as UrllibRequest, urlopen
 from uuid import uuid4
 
+import httpx
 from fastapi import (
     Depends,
     FastAPI,
@@ -62,17 +62,23 @@ def load_local_env() -> None:
 load_local_env()
 
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/prepiq")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/prepiq"
+)
 APP_SECRET = os.getenv("APP_SECRET", "change-me-in-production")
 ACCESS_TOKEN_TTL_HOURS = int(os.getenv("ACCESS_TOKEN_TTL_HOURS", "168"))
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-OPENROUTER_APP_URL = os.getenv("OPENROUTER_APP_URL", "https://github.com/Aashikhandelwal05/prepiq")
+OPENROUTER_APP_URL = os.getenv(
+    "OPENROUTER_APP_URL", "https://github.com/Aashikhandelwal05/prepiq"
+)
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "PrepIQ")
 OPENROUTER_TIMEOUT_SECONDS = float(os.getenv("OPENROUTER_TIMEOUT_SECONDS", "30"))
 CORS_ORIGINS = [
     origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080").split(",")
+    for origin in os.getenv(
+        "CORS_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080"
+    ).split(",")
     if origin.strip()
 ]
 
@@ -164,7 +170,9 @@ class JobApplicationTable(Base):
     contact_person: Mapped[str] = mapped_column(Text)
     next_action: Mapped[str] = mapped_column(Text)
     next_action_date: Mapped[str] = mapped_column(String(32))
-    linked_prep_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    linked_prep_session_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -186,9 +194,13 @@ def get_db() -> Session:
 
 
 def encode_token(payload: dict[str, Any]) -> str:
-    payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode("utf-8").rstrip("=")
-    signature = hmac.new(APP_SECRET.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
+    signature = hmac.new(
+        APP_SECRET.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
     return f"{payload_b64}.{signature}"
 
 
@@ -196,22 +208,34 @@ def decode_token(token: str) -> dict[str, Any]:
     try:
         payload_b64, signature = token.split(".", 1)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from exc
 
-    expected = hmac.new(APP_SECRET.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
+    expected = hmac.new(
+        APP_SECRET.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
     if not hmac.compare_digest(signature, expected):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
     padding = "=" * (-len(payload_b64) % 4)
-    payload = json.loads(base64.urlsafe_b64decode(f"{payload_b64}{padding}".encode()).decode("utf-8"))
+    payload = json.loads(
+        base64.urlsafe_b64decode(f"{payload_b64}{padding}".encode()).decode("utf-8")
+    )
     if payload.get("exp", 0) < int(utc_now().timestamp()):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired"
+        )
     return payload
 
 
 def hash_password(password: str, salt: str | None = None) -> str:
     actual_salt = salt or secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), actual_salt.encode("utf-8"), 200_000)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), actual_salt.encode("utf-8"), 200_000
+    )
     return f"{actual_salt}${base64.b64encode(digest).decode('utf-8')}"
 
 
@@ -496,7 +520,9 @@ def stable_number(seed: str, minimum: int, maximum: int) -> int:
     return minimum + (int(digest[:8], 16) % span)
 
 
-def call_openrouter_json(system_prompt: str, user_prompt: str) -> dict[str, Any]:
+async def call_openrouter_json(
+    system_prompt: str, user_prompt: str, client: httpx.AsyncClient | None = None
+) -> dict[str, Any]:
     if not OPENROUTER_API_KEY:
         raise OpenRouterError("OpenRouter is not configured")
 
@@ -508,26 +534,73 @@ def call_openrouter_json(system_prompt: str, user_prompt: str) -> dict[str, Any]
             {"role": "user", "content": user_prompt},
         ],
     }
-    request = UrllibRequest(
-        "https://openrouter.ai/api/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": OPENROUTER_APP_URL,
-            "X-Title": OPENROUTER_APP_NAME,
-        },
-        method="POST",
-    )
 
-    try:
-        with urlopen(request, timeout=OPENROUTER_TIMEOUT_SECONDS) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        raise OpenRouterError(f"OpenRouter request failed: {exc.code} {detail}") from exc
-    except URLError as exc:
-        raise OpenRouterError(f"OpenRouter connection failed: {exc.reason}") from exc
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": OPENROUTER_APP_URL,
+        "X-Title": OPENROUTER_APP_NAME,
+    }
+
+    max_retries = 3
+    body = None
+    for attempt in range(max_retries + 1):
+        try:
+            local_client = client
+            if local_client is None:
+                local_client = httpx.AsyncClient(
+                    timeout=httpx.Timeout(5.0, read=OPENROUTER_TIMEOUT_SECONDS)
+                )
+                must_close = True
+            else:
+                must_close = False
+
+            try:
+                response = await local_client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    json=payload,
+                    headers=headers,
+                )
+            finally:
+                if must_close:
+                    await local_client.aclose()
+
+            if response.status_code in (429, 503):
+                if attempt < max_retries:
+                    retry_after = response.headers.get("Retry-After")
+                    if retry_after and retry_after.isdigit():
+                        backoff = int(retry_after)
+                    else:
+                        backoff = 2**attempt
+
+                    logger.warning(
+                        "OpenRouter returned status %d. Retrying in %ds "
+                        "(attempt %d/%d)...",
+                        response.status_code,
+                        backoff,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    await asyncio.sleep(backoff)
+                    continue
+                else:
+                    raise OpenRouterError(
+                        f"OpenRouter request failed with status {response.status_code} "
+                        f"after {max_retries} retries"
+                    )
+
+            response.raise_for_status()
+            body = response.json()
+            break
+        except httpx.HTTPStatusError as exc:
+            raise OpenRouterError(
+                f"OpenRouter request failed: {exc.response.status_code} {exc.response.text}"
+            ) from exc
+        except httpx.RequestError as exc:
+            raise OpenRouterError(f"OpenRouter connection failed: {exc}") from exc
+
+    if not body:
+        raise OpenRouterError("OpenRouter request failed to return a response body")
 
     try:
         content = body["choices"][0]["message"]["content"]
@@ -536,17 +609,23 @@ def call_openrouter_json(system_prompt: str, user_prompt: str) -> dict[str, Any]
         raise OpenRouterError("OpenRouter returned an invalid response format") from exc
 
 
-def generate_session_payload(job_title: str, company: str, jd_text: str, resume_text: str) -> tuple[list[GapItem], int, list[QuestionItem], list[RoadmapDay]]:
+async def generate_session_payload(
+    job_title: str,
+    company: str,
+    jd_text: str,
+    resume_text: str,
+    client: httpx.AsyncClient | None = None,
+) -> tuple[list[GapItem], int, list[QuestionItem], list[RoadmapDay]]:
     try:
-        response = call_openrouter_json(
+        response = await call_openrouter_json(
             system_prompt=(
                 "You generate structured interview preparation data. "
                 "Return valid JSON only. Do not include markdown or explanations. "
                 "Use exactly this schema: "
-                "{\"gapAnalysis\":[{\"skill\":\"string\",\"have\":\"string\",\"need\":\"string\",\"gapLevel\":\"Low|Medium|High\"}],"
-                "\"readinessScore\":0,"
-                "\"questionBank\":[{\"question\":\"string\",\"type\":\"behavioral|technical|situational\",\"difficulty\":\"easy|medium|hard\",\"tip\":\"string\"}],"
-                "\"roadmap\":[{\"day\":1,\"focusArea\":\"string\",\"tasks\":[\"string\"]}]}. "
+                '{"gapAnalysis":[{"skill":"string","have":"string","need":"string","gapLevel":"Low|Medium|High"}],'
+                '"readinessScore":0,'
+                '"questionBank":[{"question":"string","type":"behavioral|technical|situational","difficulty":"easy|medium|hard","tip":"string"}],'
+                '"roadmap":[{"day":1,"focusArea":"string","tasks":["string"]}]}. '
                 "gapAnalysis must be an array with 3 to 5 items. "
                 "questionBank must be an array with 6 to 10 items. "
                 "roadmap must be an array with exactly 5 days."
@@ -566,7 +645,9 @@ def generate_session_payload(job_title: str, company: str, jd_text: str, resume_
         if len(roadmap) >= 1 and len(question_bank) >= 1 and len(gap_analysis) >= 1:
             return gap_analysis, readiness, question_bank, roadmap
     except (OpenRouterError, KeyError, TypeError, ValueError) as exc:
-        logger.warning("Using fallback prep session payload because OpenRouter failed: %s", exc)
+        logger.warning(
+            "Using fallback prep session payload because OpenRouter failed: %s", exc
+        )
 
     # Fallback: use ML match score as readiness when OpenRouter is unavailable
     readiness = compute_match_score(resume_text, jd_text)
@@ -575,31 +656,153 @@ def generate_session_payload(job_title: str, company: str, jd_text: str, resume_
         GapItem(skill="System Design", have="Basic", need="Advanced", gapLevel="High"),
         GapItem(skill="TypeScript", have="Advanced", need="Advanced", gapLevel="Low"),
         GapItem(skill="CI/CD", have="Basic", need="Intermediate", gapLevel="Medium"),
-        GapItem(skill="Testing", have="Intermediate", need="Advanced", gapLevel="Medium"),
+        GapItem(
+            skill="Testing", have="Intermediate", need="Advanced", gapLevel="Medium"
+        ),
     ]
     question_bank = [
-        QuestionItem(question="Tell me about a challenging project at your previous role.", type="behavioral", difficulty="medium", tip="Use the STAR method."),
-        QuestionItem(question=f"How would you design a scalable API for {company}?", type="technical", difficulty="hard", tip="Start with requirements and tradeoffs."),
-        QuestionItem(question="What would you do if a teammate disagreed with your approach?", type="situational", difficulty="easy", tip="Show empathy and a path to alignment."),
-        QuestionItem(question="Explain the difference between REST and GraphQL.", type="technical", difficulty="medium", tip="Cover strengths, weaknesses, and use cases."),
-        QuestionItem(question=f"Why do you want to work at {company}?", type="behavioral", difficulty="easy", tip="Tie your answer to specific company priorities."),
-        QuestionItem(question="How would you handle a production outage?", type="situational", difficulty="hard", tip="Demonstrate triage, communication, and follow-through."),
+        QuestionItem(
+            question="Tell me about a challenging project at your previous role.",
+            type="behavioral",
+            difficulty="medium",
+            tip="Use the STAR method.",
+        ),
+        QuestionItem(
+            question=f"How would you design a scalable API for {company}?",
+            type="technical",
+            difficulty="hard",
+            tip="Start with requirements and tradeoffs.",
+        ),
+        QuestionItem(
+            question="What would you do if a teammate disagreed with your approach?",
+            type="situational",
+            difficulty="easy",
+            tip="Show empathy and a path to alignment.",
+        ),
+        QuestionItem(
+            question="Explain the difference between REST and GraphQL.",
+            type="technical",
+            difficulty="medium",
+            tip="Cover strengths, weaknesses, and use cases.",
+        ),
+        QuestionItem(
+            question=f"Why do you want to work at {company}?",
+            type="behavioral",
+            difficulty="easy",
+            tip="Tie your answer to specific company priorities.",
+        ),
+        QuestionItem(
+            question="How would you handle a production outage?",
+            type="situational",
+            difficulty="hard",
+            tip="Demonstrate triage, communication, and follow-through.",
+        ),
     ]
     roadmap = [
-        RoadmapDay(day=1, focusArea="Company Research", tasks=[f"Research {company}'s products", "Study the team and stack", "Read recent company updates"]),
-        RoadmapDay(day=2, focusArea="Technical Review", tasks=["Review core concepts", f"Practice {job_title}-specific problems", "Refresh system design patterns"]),
-        RoadmapDay(day=3, focusArea="Behavioral Prep", tasks=["Prepare STAR stories", "Practice behavioral questions", "Review achievements with metrics"]),
-        RoadmapDay(day=4, focusArea="Mock Interviews", tasks=["Run 2 mock rounds", "Review weak answers", "Refine delivery and examples"]),
-        RoadmapDay(day=5, focusArea="Final Review", tasks=["Review notes", "Prepare questions to ask", "Rest before the interview"]),
+        RoadmapDay(
+            day=1,
+            focusArea="Company Research",
+            tasks=[
+                f"Research {company}'s products",
+                "Study the team and stack",
+                "Read recent company updates",
+            ],
+        ),
+        RoadmapDay(
+            day=2,
+            focusArea="Technical Review",
+            tasks=[
+                "Review core concepts",
+                f"Practice {job_title}-specific problems",
+                "Refresh system design patterns",
+            ],
+        ),
+        RoadmapDay(
+            day=3,
+            focusArea="Behavioral Prep",
+            tasks=[
+                "Prepare STAR stories",
+                "Practice behavioral questions",
+                "Review achievements with metrics",
+            ],
+        ),
+        RoadmapDay(
+            day=4,
+            focusArea="Mock Interviews",
+            tasks=[
+                "Run 2 mock rounds",
+                "Review weak answers",
+                "Refine delivery and examples",
+            ],
+        ),
+        RoadmapDay(
+            day=5,
+            focusArea="Final Review",
+            tasks=[
+                "Review notes",
+                "Prepare questions to ask",
+                "Rest before the interview",
+            ],
+        ),
     ]
     return gap_analysis, readiness, question_bank, roadmap
+
+
 def _significant_tokens(text: str) -> set[str]:
     stopwords = {
-        "the", "and", "a", "an", "of", "to", "is", "are", "in", "for", "on", "with",
-        "that", "this", "it", "as", "at", "by", "from", "be", "or", "not", "have",
-        "has", "was", "were", "will", "can", "i", "you", "your", "we", "our", "they",
-        "their", "what", "which", "when", "where", "why", "how", "do", "does", "did",
-        "so", "but", "if", "then", "because", "there", "these", "those", "meaning",
+        "the",
+        "and",
+        "a",
+        "an",
+        "of",
+        "to",
+        "is",
+        "are",
+        "in",
+        "for",
+        "on",
+        "with",
+        "that",
+        "this",
+        "it",
+        "as",
+        "at",
+        "by",
+        "from",
+        "be",
+        "or",
+        "not",
+        "have",
+        "has",
+        "was",
+        "were",
+        "will",
+        "can",
+        "i",
+        "you",
+        "your",
+        "we",
+        "our",
+        "they",
+        "their",
+        "what",
+        "which",
+        "when",
+        "where",
+        "why",
+        "how",
+        "do",
+        "does",
+        "did",
+        "so",
+        "but",
+        "if",
+        "then",
+        "because",
+        "there",
+        "these",
+        "those",
+        "meaning",
     }
     return {
         token.lower()
@@ -609,11 +812,33 @@ def _significant_tokens(text: str) -> set[str]:
 
 
 FALLBACK_TECHNICAL_TERMS = {
-    "model", "data", "training", "test", "accuracy", "performance", "generalize",
-    "generalization", "variance", "bias", "overfit", "overfitting", "unseen",
-    "feature", "dataset", "classification", "regression", "optimization",
-    "neural", "network", "algorithm", "prediction", "validation", "loss",
-    "error", "regularization", "parameter",
+    "model",
+    "data",
+    "training",
+    "test",
+    "accuracy",
+    "performance",
+    "generalize",
+    "generalization",
+    "variance",
+    "bias",
+    "overfit",
+    "overfitting",
+    "unseen",
+    "feature",
+    "dataset",
+    "classification",
+    "regression",
+    "optimization",
+    "neural",
+    "network",
+    "algorithm",
+    "prediction",
+    "validation",
+    "loss",
+    "error",
+    "regularization",
+    "parameter",
 }
 
 
@@ -622,7 +847,9 @@ def _fallback_answer_quality(question: str, answer: str) -> float:
     question_tokens = _significant_tokens(question)
 
     overlap = len(question_tokens & answer_tokens) / max(1, len(question_tokens))
-    technical_count = sum(1 for token in answer_tokens if token in FALLBACK_TECHNICAL_TERMS)
+    technical_count = sum(
+        1 for token in answer_tokens if token in FALLBACK_TECHNICAL_TERMS
+    )
     technical_density = min(1.0, technical_count / 4)
 
     explanatory = bool(
@@ -639,17 +866,20 @@ def _fallback_answer_quality(question: str, answer: str) -> float:
         quality = min(1.0, quality + 0.15)
     return quality
 
-def evaluate_mock_attempt(question: str, answer: str) -> tuple[int, MockFeedback]:
+
+async def evaluate_mock_attempt(
+    question: str, answer: str, client: httpx.AsyncClient | None = None
+) -> tuple[int, MockFeedback]:
     # --- ML: always analyze confidence regardless of OpenRouter outcome ---
     confidence = ConfidenceAnalysis(**analyze_confidence(answer))
 
     try:
-        response = call_openrouter_json(
+        response = await call_openrouter_json(
             system_prompt=(
                 "You evaluate interview answers. "
                 "Return valid JSON only. Do not include markdown or explanations. "
                 "Use exactly this schema: "
-                "{\"aiScore\":7,\"strengths\":[\"string\"],\"missing\":[\"string\"],\"modelAnswer\":\"string\",\"oneLineVerdict\":\"string\"}. "
+                '{"aiScore":7,"strengths":["string"],"missing":["string"],"modelAnswer":"string","oneLineVerdict":"string"}. '
                 "aiScore must be an integer from 1 to 10. "
                 "strengths and missing must each be arrays with 2 to 4 concise strings."
             ),
@@ -658,6 +888,7 @@ def evaluate_mock_attempt(question: str, answer: str) -> tuple[int, MockFeedback
                 f"Candidate answer:\n{answer}\n\n"
                 "Evaluate the answer for a job-seeker preparation product."
             ),
+            client=client,
         )
         score = max(1, min(10, int(response["aiScore"])))
         feedback = MockFeedback(
@@ -670,7 +901,9 @@ def evaluate_mock_attempt(question: str, answer: str) -> tuple[int, MockFeedback
         if feedback.strengths and feedback.missing:
             return score, feedback
     except (OpenRouterError, KeyError, TypeError, ValueError) as exc:
-        logger.warning("Using fallback mock feedback because OpenRouter failed: %s", exc)
+        logger.warning(
+            "Using fallback mock feedback because OpenRouter failed: %s", exc
+        )
 
     base_seed = f"{question}|{answer}"
     answer_text = answer.strip()
@@ -741,7 +974,10 @@ def require_current_user(
     db: Session = Depends(get_db),
 ) -> UserTable:
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing authorization token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authorization token",
+        )
 
     payload = decode_token(authorization.removeprefix("Bearer ").strip())
     token_user_id = payload.get("sub")
@@ -750,7 +986,9 @@ def require_current_user(
 
     user = db.get(UserTable, token_user_id)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
     return user
 
 
@@ -758,7 +996,10 @@ def validate_payload_size(request: Request) -> None:
     if "content-length" in request.headers:
         length = int(request.headers["content-length"])
         if length > 10240:
-            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Request entity too large")
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Request entity too large",
+            )
 
 
 app = FastAPI(title="PrepIQ Backend", version="2.0.0")
@@ -773,12 +1014,23 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-def startup() -> None:
+async def startup() -> None:
+    app.state.httpx_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(5.0, read=OPENROUTER_TIMEOUT_SECONDS),
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+    )
     try:
         Base.metadata.create_all(bind=engine)
     except Exception:
         logging.getLogger(__name__).exception("Failed to create database tables")
         raise
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    client = getattr(app.state, "httpx_client", None)
+    if client is not None:
+        await client.aclose()
 
 
 @app.get("/api/health")
@@ -788,24 +1040,48 @@ def health() -> dict[str, str]:
 
 @app.post("/api/auth/login", response_model=AuthResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
-    user = db.execute(select(UserTable).where(UserTable.email == payload.email.lower())).scalar_one_or_none()
+    user = db.execute(
+        select(UserTable).where(UserTable.email == payload.email.lower())
+    ).scalar_one_or_none()
     if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        )
 
-    token = encode_token({"sub": user.id, "email": user.email, "exp": int((utc_now() + timedelta(hours=ACCESS_TOKEN_TTL_HOURS)).timestamp())})
+    token = encode_token(
+        {
+            "sub": user.id,
+            "email": user.email,
+            "exp": int(
+                (utc_now() + timedelta(hours=ACCESS_TOKEN_TTL_HOURS)).timestamp()
+            ),
+        }
+    )
     return AuthResponse(user=user_from_table(user), token=token)
 
 
-@app.post("/api/auth/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/api/auth/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
+)
 def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthResponse:
     if len(payload.password) < 8:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Password must be at least 8 characters")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be at least 8 characters",
+        )
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", payload.email):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid email format")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid email format",
+        )
 
-    existing = db.execute(select(UserTable).where(UserTable.email == payload.email.lower())).scalar_one_or_none()
+    existing = db.execute(
+        select(UserTable).where(UserTable.email == payload.email.lower())
+    ).scalar_one_or_none()
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Email already exists"
+        )
 
     user = UserTable(
         id=str(uuid4()),
@@ -817,23 +1093,42 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthRespons
     db.add(user)
     db.commit()
 
-    token = encode_token({"sub": user.id, "email": user.email, "exp": int((utc_now() + timedelta(hours=ACCESS_TOKEN_TTL_HOURS)).timestamp())})
+    token = encode_token(
+        {
+            "sub": user.id,
+            "email": user.email,
+            "exp": int(
+                (utc_now() + timedelta(hours=ACCESS_TOKEN_TTL_HOURS)).timestamp()
+            ),
+        }
+    )
     return AuthResponse(user=user_from_table(user), token=token)
 
 
 @app.get("/api/auth/me", response_model=User)
-def me(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> User:
+def me(
+    authorization: str | None = Header(default=None), db: Session = Depends(get_db)
+) -> User:
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing authorization token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authorization token",
+        )
     payload = decode_token(authorization.removeprefix("Bearer ").strip())
     user = db.get(UserTable, payload.get("sub"))
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
     return user_from_table(user)
 
 
 @app.get("/api/users/{user_id}/profile", response_model=CareerProfile | None)
-def get_profile(user_id: str, _: UserTable = Depends(require_current_user), db: Session = Depends(get_db)) -> CareerProfile | None:
+def get_profile(
+    user_id: str,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> CareerProfile | None:
     profile = db.get(ProfileTable, user_id)
     return profile_from_table(profile) if profile else None
 
@@ -846,7 +1141,9 @@ def save_profile(
     db: Session = Depends(get_db),
 ) -> CareerProfile:
     if profile.userId != user_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Profile user mismatch")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Profile user mismatch"
+        )
 
     payload = profile.model_dump(by_alias=True)
     existing = db.get(ProfileTable, user_id)
@@ -894,27 +1191,59 @@ def save_profile(
 
 
 @app.get("/api/users/{user_id}/sessions", response_model=list[InterviewSession])
-def get_sessions(user_id: str, _: UserTable = Depends(require_current_user), db: Session = Depends(get_db)) -> list[InterviewSession]:
-    rows = db.execute(select(InterviewSessionTable).where(InterviewSessionTable.user_id == user_id).order_by(InterviewSessionTable.created_at.asc())).scalars()
+def get_sessions(
+    user_id: str,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> list[InterviewSession]:
+    rows = db.execute(
+        select(InterviewSessionTable)
+        .where(InterviewSessionTable.user_id == user_id)
+        .order_by(InterviewSessionTable.created_at.asc())
+    ).scalars()
     return [session_from_table(row) for row in rows]
 
 
 @app.get("/api/users/{user_id}/sessions/{session_id}", response_model=InterviewSession)
-def get_session(user_id: str, session_id: str, _: UserTable = Depends(require_current_user), db: Session = Depends(get_db)) -> InterviewSession:
-    row = db.execute(select(InterviewSessionTable).where(InterviewSessionTable.id == session_id, InterviewSessionTable.user_id == user_id)).scalar_one_or_none()
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-    return session_from_table(row)
-
-
-@app.post("/api/users/{user_id}/sessions", response_model=InterviewSession, status_code=status.HTTP_201_CREATED)
-def create_session(
+def get_session(
     user_id: str,
-    payload: CreateInterviewSessionRequest,
+    session_id: str,
     _: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> InterviewSession:
-    gap_analysis, readiness, question_bank, roadmap = generate_session_payload(payload.jobTitle, payload.company, payload.jdText, payload.resumeText)
+    row = db.execute(
+        select(InterviewSessionTable).where(
+            InterviewSessionTable.id == session_id,
+            InterviewSessionTable.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
+    return session_from_table(row)
+
+
+@app.post(
+    "/api/users/{user_id}/sessions",
+    response_model=InterviewSession,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_session(
+    user_id: str,
+    payload: CreateInterviewSessionRequest,
+    request: Request,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> InterviewSession:
+    client = getattr(request.app.state, "httpx_client", None)
+    gap_analysis, readiness, question_bank, roadmap = await generate_session_payload(
+        payload.jobTitle,
+        payload.company,
+        payload.jdText,
+        payload.resumeText,
+        client=client,
+    )
 
     # --- ML: extract skills from resume ---
     skills = extract_skills(payload.resumeText)
@@ -958,7 +1287,9 @@ def delete_session(
         )
     ).scalar_one_or_none()
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
 
     db.execute(
         delete(MockAttemptTable).where(
@@ -974,20 +1305,33 @@ def delete_session(
 @app.get("/api/users/{user_id}/mocks", response_model=PaginatedMockAttempts)
 def get_mock_attempts(
     user_id: str,
-    limit: int = Query(default=20, ge=1, le=100, description="No. of results that will be returned (1–100)"),
-    offset: int = Query(default=0, ge=0, description="Number of results that has to be skipped"),
+    limit: int = Query(
+        default=20,
+        ge=1,
+        le=100,
+        description="No. of results that will be returned (1–100)",
+    ),
+    offset: int = Query(
+        default=0, ge=0, description="Number of results that has to be skipped"
+    ),
     _: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> PaginatedMockAttempts:
     base_filter = MockAttemptTable.user_id == user_id
-    total = db.execute(select(func.count()).select_from(MockAttemptTable).where(base_filter)).scalar_one()
-    rows = db.execute(
-        select(MockAttemptTable)
-        .where(base_filter)
-        .order_by(MockAttemptTable.created_at.asc())
-        .limit(limit)
-        .offset(offset)
-    ).scalars().all()
+    total = db.execute(
+        select(func.count()).select_from(MockAttemptTable).where(base_filter)
+    ).scalar_one()
+    rows = (
+        db.execute(
+            select(MockAttemptTable)
+            .where(base_filter)
+            .order_by(MockAttemptTable.created_at.asc())
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
+    )
     return PaginatedMockAttempts(
         items=[mock_from_table(row) for row in rows],
         total=total,
@@ -996,18 +1340,33 @@ def get_mock_attempts(
     )
 
 
-@app.post("/api/users/{user_id}/mocks", response_model=MockAttempt, status_code=status.HTTP_201_CREATED)
-def create_mock_attempt(
+@app.post(
+    "/api/users/{user_id}/mocks",
+    response_model=MockAttempt,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_mock_attempt(
     user_id: str,
     payload: CreateMockAttemptRequest,
+    request: Request,
     _: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> MockAttempt:
     if not payload.question.strip():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Question must not be empty")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Question must not be empty",
+        )
     if not payload.userAnswer.strip():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Answer must not be empty")
-    score, feedback = evaluate_mock_attempt(payload.question, payload.userAnswer)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Answer must not be empty",
+        )
+
+    client = getattr(request.app.state, "httpx_client", None)
+    score, feedback = await evaluate_mock_attempt(
+        payload.question, payload.userAnswer, client=client
+    )
     row = MockAttemptTable(
         id=str(uuid4()),
         session_id=payload.sessionId,
@@ -1024,12 +1383,24 @@ def create_mock_attempt(
 
 
 @app.get("/api/users/{user_id}/jobs", response_model=list[JobApplication])
-def get_jobs(user_id: str, _: UserTable = Depends(require_current_user), db: Session = Depends(get_db)) -> list[JobApplication]:
-    rows = db.execute(select(JobApplicationTable).where(JobApplicationTable.user_id == user_id).order_by(JobApplicationTable.created_at.asc())).scalars()
+def get_jobs(
+    user_id: str,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> list[JobApplication]:
+    rows = db.execute(
+        select(JobApplicationTable)
+        .where(JobApplicationTable.user_id == user_id)
+        .order_by(JobApplicationTable.created_at.asc())
+    ).scalars()
     return [job_from_table(row) for row in rows]
 
 
-@app.post("/api/users/{user_id}/jobs", response_model=JobApplication, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/api/users/{user_id}/jobs",
+    response_model=JobApplication,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_job(
     user_id: str,
     payload: CreateJobApplicationRequest,
@@ -1069,9 +1440,15 @@ def update_job(
     _: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> JobApplication:
-    job = db.execute(select(JobApplicationTable).where(JobApplicationTable.id == job_id, JobApplicationTable.user_id == user_id)).scalar_one_or_none()
+    job = db.execute(
+        select(JobApplicationTable).where(
+            JobApplicationTable.id == job_id, JobApplicationTable.user_id == user_id
+        )
+    ).scalar_one_or_none()
     if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job application not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job application not found"
+        )
 
     field_map = {
         "companyName": "company_name",
@@ -1113,7 +1490,9 @@ def delete_job(
         )
     ).scalar_one_or_none()
     if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job application not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job application not found"
+        )
 
     db.delete(job)
     db.commit()
@@ -1123,6 +1502,7 @@ def delete_job(
 # ---------------------------------------------------------------------------
 # ML/NLP endpoints
 # ---------------------------------------------------------------------------
+
 
 class ExtractSkillsRequest(BaseModel):
     text: str
@@ -1147,20 +1527,38 @@ class ConfidenceRequest(BaseModel):
     text: str
 
 
-@app.post("/api/ml/extract-skills", response_model=ExtractSkillsResponse, dependencies=[Depends(require_current_user), Depends(validate_payload_size)])
+@app.post(
+    "/api/ml/extract-skills",
+    response_model=ExtractSkillsResponse,
+    dependencies=[Depends(require_current_user), Depends(validate_payload_size)],
+)
 def ml_extract_skills(payload: ExtractSkillsRequest) -> ExtractSkillsResponse:
     skills = extract_skills(payload.text)
     return ExtractSkillsResponse(skills=skills, count=len(skills))
 
 
-@app.post("/api/ml/match-score", response_model=MatchScoreResponse, dependencies=[Depends(require_current_user), Depends(validate_payload_size)])
+@app.post(
+    "/api/ml/match-score",
+    response_model=MatchScoreResponse,
+    dependencies=[Depends(require_current_user), Depends(validate_payload_size)],
+)
 def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
     score = compute_match_score(payload.resumeText, payload.jdText)
-    label = "Strong match" if score >= 70 else "Moderate match" if score >= 50 else "Weak match"
+    label = (
+        "Strong match"
+        if score >= 70
+        else "Moderate match"
+        if score >= 50
+        else "Weak match"
+    )
     return MatchScoreResponse(score=score, label=label)
 
 
-@app.post("/api/ml/analyze-confidence", response_model=ConfidenceAnalysis, dependencies=[Depends(require_current_user), Depends(validate_payload_size)])
+@app.post(
+    "/api/ml/analyze-confidence",
+    response_model=ConfidenceAnalysis,
+    dependencies=[Depends(require_current_user), Depends(validate_payload_size)],
+)
 def ml_analyze_confidence(payload: ConfidenceRequest) -> ConfidenceAnalysis:
     result = analyze_confidence(payload.text)
     return ConfidenceAnalysis(**result)
