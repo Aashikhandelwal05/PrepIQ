@@ -1209,7 +1209,6 @@ def get_sessions(
 
 @app.get("/api/users/{user_id}/sessions/{session_id}", response_model=InterviewSession)
 def get_session(
-
     user_id: str,
     session_id: str,
     _: UserTable = Depends(require_current_user),
