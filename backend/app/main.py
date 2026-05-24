@@ -873,10 +873,31 @@ async def evaluate_mock_attempt(
     # --- ML: always analyze confidence regardless of OpenRouter outcome ---
     confidence = ConfidenceAnalysis(**analyze_confidence(answer))
 
+    answer_text = answer.strip()
+    answer_words = re.findall(r"\w+", answer_text)
+    
+    # Pre-validation: Catch extremely short or purely gibberish answers early
+    if len(answer_words) < 5 or len(answer_text) < 20 or max((len(w) for w in answer_words), default=0) > 25:
+        return 1, MockFeedback(
+            strengths=["Attempted to respond"],
+            missing=[
+                "The answer provided was unintelligible or too short to read.",
+                "Provide a clear, detailed explanation.",
+            ],
+            modelAnswer=(
+                "A strong answer should set the context, explain the challenge, describe the action taken, "
+                "and close with a measurable result. Use a concrete example, include numbers where possible."
+            ),
+            oneLineVerdict="Answer was unintelligible or significantly lacking detail.",
+            confidenceAnalysis=confidence,
+        )
+
     try:
         response = await call_openrouter_json(
             system_prompt=(
                 "You evaluate interview answers. "
+                "CRITICAL: If the answer is gibberish, extremely short, or completely irrelevant, "
+                "you MUST give it a low score (1-3) and state that it is unintelligible or irrelevant in the feedback. "
                 "Return valid JSON only. Do not include markdown or explanations. "
                 "Use exactly this schema: "
                 '{"aiScore":7,"strengths":["string"],"missing":["string"],"modelAnswer":"string","oneLineVerdict":"string"}. '

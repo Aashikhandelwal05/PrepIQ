@@ -225,7 +225,6 @@ def analyze_confidence(answer_text: str) -> dict[str, Any]:
     else:
         sentiment = "neutral"
 
-    # --- Specificity score ---
     # More numbers, percentages, and concrete metrics = more specific
     number_count = len(re.findall(r'\b\d+[\d,.]*%?\b', answer_text))
     metric_keywords = ["increased", "decreased", "improved", "reduced", "achieved",
