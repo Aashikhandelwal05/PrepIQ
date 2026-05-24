@@ -1209,6 +1209,7 @@ def get_sessions(
 
 @app.get("/api/users/{user_id}/sessions/{session_id}", response_model=InterviewSession)
 def get_session(
+
     user_id: str,
     session_id: str,
     _: UserTable = Depends(require_current_user),
@@ -1610,14 +1611,28 @@ async def extract_document_text(
             detail=f"Invalid MIME type '{content_type}'. Expected PDF or DOCX.",
         )
 
-    # Read file into memory and validate size
-    file_bytes = await file.read()
-    if len(file_bytes) > MAX_FILE_SIZE_BYTES:
-        size_mb = len(file_bytes) / (1024 * 1024)
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"File too large ({size_mb:.1f} MB). Maximum allowed size is 5 MB.",
-        )
+    # Read file into memory and validate size in a safe chunked manner
+    MAX_FILE_SIZE = 5 * 1024 * 1024
+
+    content = bytearray()
+    size = 0
+
+    try:
+        while chunk := await file.read(1024 * 1024):
+            size += len(chunk)
+
+            if size > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=400,
+                    detail="File size exceeds 5MB limit",
+                )
+
+            content.extend(chunk)
+
+        file_bytes = bytes(content)
+
+    finally:
+        await file.close()
 
     try:
         if ext == ".pdf":
@@ -1653,4 +1668,6 @@ async def extract_document_text(
             detail=f"No text content found in '{filename}'. The file may contain only images or be empty.",
         )
 
-    return ExtractDocumentTextResponse(text=extracted.strip(), filename=filename, pages=page_count)
+    return ExtractDocumentTextResponse(
+        text=extracted.strip(), filename=filename, pages=page_count
+    )

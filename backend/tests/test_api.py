@@ -47,7 +47,9 @@ class PrepIQApiTestCase(unittest.TestCase):
     def test_load_local_env_preserves_existing_environment(self) -> None:
         from backend.app.main import load_local_env
 
-        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as env_file:
+        with tempfile.NamedTemporaryFile(
+            "w", delete=False, encoding="utf-8"
+        ) as env_file:
             env_file.write("PREPIQ_TEST_ENV=from-file\n")
             env_file.write("PREPIQ_EXISTING_ENV=from-file\n")
             env_path = env_file.name
@@ -142,7 +144,9 @@ class PrepIQApiTestCase(unittest.TestCase):
         self.assertIsInstance(payload["score"], int)
         self.assertGreaterEqual(payload["score"], 0)
         self.assertLessEqual(payload["score"], 100)
-        self.assertIn(payload["label"], {"Strong match", "Moderate match", "Weak match"})
+        self.assertIn(
+            payload["label"], {"Strong match", "Moderate match", "Weak match"}
+        )
 
     def test_analyze_confidence_endpoint_returns_analysis_shape(self) -> None:
         _, headers = self.create_account()
@@ -194,12 +198,16 @@ class PrepIQApiTestCase(unittest.TestCase):
         self.assertEqual(login.status_code, 200, login.text)
         token = login.json()["token"]
 
-        me = self.client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        me = self.client.get(
+            "/api/auth/me", headers={"Authorization": f"Bearer {token}"}
+        )
         self.assertEqual(me.status_code, 200, me.text)
         self.assertEqual(me.json()["email"], email)
 
         tampered_token = f"{token[:-1]}{'a' if token[-1] != 'a' else 'b'}"
-        tampered_me = self.client.get("/api/auth/me", headers={"Authorization": f"Bearer {tampered_token}"})
+        tampered_me = self.client.get(
+            "/api/auth/me", headers={"Authorization": f"Bearer {tampered_token}"}
+        )
         self.assertEqual(tampered_me.status_code, 401, tampered_me.text)
 
     def test_login_wrong_password_returns_401(self) -> None:
@@ -224,11 +232,13 @@ class PrepIQApiTestCase(unittest.TestCase):
 
         user_id, _ = self.create_account()
 
-        expired_token = encode_token({
-            "sub": user_id,
-            "email": "expired@example.com",
-            "exp": int((utc_now() - timedelta(hours=1)).timestamp()),
-        })
+        expired_token = encode_token(
+            {
+                "sub": user_id,
+                "email": "expired@example.com",
+                "exp": int((utc_now() - timedelta(hours=1)).timestamp()),
+            }
+        )
 
         response = self.client.get(
             f"/api/users/{user_id}/sessions",
@@ -337,12 +347,18 @@ class PrepIQApiTestCase(unittest.TestCase):
         patch = self.client.patch(
             f"/api/users/{user_id}/jobs/{job_id}",
             headers=headers,
-            json={"status": "Interview", "location": "Remote", "notes": "Follow up next week"},
+            json={
+                "status": "Interview",
+                "location": "Remote",
+                "notes": "Follow up next week",
+            },
         )
         self.assertEqual(patch.status_code, 200, patch.text)
         self.assertEqual(patch.json()["status"], "Interview")
 
-        delete_job = self.client.delete(f"/api/users/{user_id}/jobs/{job_id}", headers=headers)
+        delete_job = self.client.delete(
+            f"/api/users/{user_id}/jobs/{job_id}", headers=headers
+        )
         self.assertEqual(delete_job.status_code, 204, delete_job.text)
 
         jobs = self.client.get(f"/api/users/{user_id}/jobs", headers=headers)
@@ -359,7 +375,9 @@ class PrepIQApiTestCase(unittest.TestCase):
         self.assertEqual(sessions.status_code, 200, sessions.text)
         self.assertEqual(sessions.json(), [])
 
-        mocks_after_delete = self.client.get(f"/api/users/{user_id}/mocks", headers=headers)
+        mocks_after_delete = self.client.get(
+            f"/api/users/{user_id}/mocks", headers=headers
+        )
         self.assertEqual(mocks_after_delete.status_code, 200, mocks_after_delete.text)
         self.assertEqual(mocks_after_delete.json()["items"], [])
         self.assertEqual(mocks_after_delete.json()["total"], 0)
