@@ -969,7 +969,6 @@ async def evaluate_mock_attempt(
 
 
 def require_current_user(
-    user_id: str | None = None,
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> UserTable:
@@ -978,12 +977,8 @@ def require_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authorization token",
         )
-
     payload = decode_token(authorization.removeprefix("Bearer ").strip())
     token_user_id = payload.get("sub")
-    if user_id is not None and token_user_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-
     user = db.get(UserTable, token_user_id)
     if not user:
         raise HTTPException(
@@ -1126,9 +1121,11 @@ def me(
 @app.get("/api/users/{user_id}/profile", response_model=CareerProfile | None)
 def get_profile(
     user_id: str,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> CareerProfile | None:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     profile = db.get(ProfileTable, user_id)
     return profile_from_table(profile) if profile else None
 
@@ -1137,9 +1134,11 @@ def get_profile(
 def save_profile(
     user_id: str,
     profile: CareerProfile,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> CareerProfile:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     if profile.userId != user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Profile user mismatch"
@@ -1193,9 +1192,11 @@ def save_profile(
 @app.get("/api/users/{user_id}/sessions", response_model=list[InterviewSession])
 def get_sessions(
     user_id: str,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> list[InterviewSession]:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     rows = db.execute(
         select(InterviewSessionTable)
         .where(InterviewSessionTable.user_id == user_id)
@@ -1208,9 +1209,11 @@ def get_sessions(
 def get_session(
     user_id: str,
     session_id: str,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> InterviewSession:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     row = db.execute(
         select(InterviewSessionTable).where(
             InterviewSessionTable.id == session_id,
@@ -1233,9 +1236,11 @@ async def create_session(
     user_id: str,
     payload: CreateInterviewSessionRequest,
     request: Request,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> InterviewSession:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     client = getattr(request.app.state, "httpx_client", None)
     gap_analysis, readiness, question_bank, roadmap = await generate_session_payload(
         payload.jobTitle,
@@ -1277,9 +1282,11 @@ async def create_session(
 def delete_session(
     user_id: str,
     session_id: str,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     session = db.execute(
         select(InterviewSessionTable).where(
             InterviewSessionTable.id == session_id,
@@ -1314,9 +1321,11 @@ def get_mock_attempts(
     offset: int = Query(
         default=0, ge=0, description="Number of results that has to be skipped"
     ),
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> PaginatedMockAttempts:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     base_filter = MockAttemptTable.user_id == user_id
     total = db.execute(
         select(func.count()).select_from(MockAttemptTable).where(base_filter)
@@ -1349,9 +1358,11 @@ async def create_mock_attempt(
     user_id: str,
     payload: CreateMockAttemptRequest,
     request: Request,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> MockAttempt:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     if not payload.question.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -1385,9 +1396,11 @@ async def create_mock_attempt(
 @app.get("/api/users/{user_id}/jobs", response_model=list[JobApplication])
 def get_jobs(
     user_id: str,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> list[JobApplication]:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     rows = db.execute(
         select(JobApplicationTable)
         .where(JobApplicationTable.user_id == user_id)
@@ -1404,9 +1417,11 @@ def get_jobs(
 def create_job(
     user_id: str,
     payload: CreateJobApplicationRequest,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> JobApplication:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     now = utc_now()
     row = JobApplicationTable(
         id=str(uuid4()),
@@ -1437,9 +1452,11 @@ def update_job(
     user_id: str,
     job_id: str,
     payload: UpdateJobApplicationRequest,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> JobApplication:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     job = db.execute(
         select(JobApplicationTable).where(
             JobApplicationTable.id == job_id, JobApplicationTable.user_id == user_id
@@ -1480,9 +1497,11 @@ def update_job(
 def delete_job(
     user_id: str,
     job_id: str,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     job = db.execute(
         select(JobApplicationTable).where(
             JobApplicationTable.id == job_id,
