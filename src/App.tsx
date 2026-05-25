@@ -100,7 +100,7 @@ function AppRoutes() {
   const { profile, saveProfile, profileError } = useCareerProfile(user?.id);
   const { sessions, addSession, sessionsError } = useInterviewSessions(user?.id);
   const { attempts, addAttempt, attemptsError } = useMockAttempts(user?.id);
-  const { jobs, addJob, updateJob, jobsError } = useJobApplications(user?.id);
+  const { jobs, addJob, updateJob, deleteJob, jobsError } = useJobApplications(user?.id);
   const resourceErrorMessage = profileError ?? sessionsError ?? attemptsError ?? jobsError;
 
   return (
@@ -119,7 +119,7 @@ function AppRoutes() {
           userId={user?.id || ""}
         /></ProtectedRoute>} />
         <Route path="/mock-interview" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><MockInterviewPage sessions={sessions} attempts={attempts} onAddAttempt={addAttempt} userId={user?.id || ""} /></ProtectedRoute>} />
-        <Route path="/job-tracker" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><JobTrackerPage jobs={jobs} sessions={sessions} onAddJob={addJob} onUpdateJob={updateJob} userId={user?.id || ""} /></ProtectedRoute>} />
+        <Route path="/job-tracker" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><JobTrackerPage jobs={jobs} sessions={sessions} onAddJob={addJob} onUpdateJob={updateJob} onDeleteJob={deleteJob} userId={user?.id || ""} /></ProtectedRoute>} />
         <Route path="/progress" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><ProgressPage mocks={attempts} sessions={sessions} /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>

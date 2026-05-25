@@ -359,5 +359,9 @@ export function useJobApplications(userId: string | undefined) {
     return updated;
   }, [setJobs, userId]);
 
-  return { jobs, addJob, updateJob, jobsError, jobsLoading };
+  const deleteJob = useCallback((id: string) => {
+    setJobs((prev) => prev.filter((job) => job.id !== id));
+  }, [setJobs]);
+
+  return { jobs, addJob, updateJob, deleteJob, jobsError, jobsLoading };
 }

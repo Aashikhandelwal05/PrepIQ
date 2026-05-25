@@ -1,5 +1,12 @@
 import { useEffect, useState, useRef } from "react";
-import { Briefcase, Plus, LayoutGrid, Table as TableIcon } from "lucide-react";
+import {
+  Briefcase,
+  Plus,
+  LayoutGrid,
+  Table as TableIcon,
+  Check,
+  ChevronsUpDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,8 +15,32 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { CreateJobApplicationInput, JobApplication, InterviewSession } from "@/lib/store";
+import { apiRequest } from "@/lib/api";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   DndContext,
   DragOverlay,
@@ -35,6 +66,103 @@ import { CSS } from "@dnd-kit/utilities";
 
 const STATUSES = ["Applied", "Screening", "Interview", "Offer", "Rejected", "Ghosted"] as const;
 type Status = (typeof STATUSES)[number];
+const JOB_ROLES = [
+  "Software Engineer",
+  "Software Developer",
+  "Frontend Developer",
+  "Backend Developer",
+  "Full Stack Developer",
+  "Web Developer",
+  "Mobile App Developer",
+  "Android Developer",
+  "iOS Developer",
+  "React Developer",
+  "Next.js Developer",
+  "Node.js Developer",
+  "Java Developer",
+  "Python Developer",
+  "C++ Developer",
+  "PHP Developer",
+  "Ruby Developer",
+  "Go Developer",
+  "Rust Developer",
+  "Scala Developer",
+
+  "Data Analyst",
+  "Business Analyst",
+  "Data Scientist",
+  "Data Engineer",
+  "Machine Learning Engineer",
+  "AI Engineer",
+  "Deep Learning Engineer",
+  "NLP Engineer",
+  "Computer Vision Engineer",
+  "Research Engineer",
+
+  "DevOps Engineer",
+  "Cloud Engineer",
+  "Site Reliability Engineer",
+  "Platform Engineer",
+  "Infrastructure Engineer",
+  "Systems Engineer",
+
+  "Cybersecurity Analyst",
+  "Security Engineer",
+  "Security Consultant",
+  "Ethical Hacker",
+  "SOC Analyst",
+  "Network Security Engineer",
+
+  "QA Engineer",
+  "Test Engineer",
+  "Automation Test Engineer",
+  "Manual Tester",
+  "Performance Tester",
+
+  "UI Designer",
+  "UX Designer",
+  "UI/UX Designer",
+  "Product Designer",
+  "Graphic Designer",
+  "Interaction Designer",
+
+  "Product Manager",
+  "Project Manager",
+  "Program Manager",
+  "Technical Product Manager",
+  "Scrum Master",
+
+  "Database Administrator",
+  "Database Engineer",
+  "SQL Developer",
+
+  "Cloud Architect",
+  "Solutions Architect",
+  "Enterprise Architect",
+
+  "Network Engineer",
+  "System Administrator",
+  "IT Support Engineer",
+  "Help Desk Engineer",
+
+  "Blockchain Developer",
+  "Game Developer",
+  "AR/VR Developer",
+  "Embedded Engineer",
+  "Firmware Engineer",
+  "IoT Engineer",
+
+  "Technical Writer",
+  "Consultant",
+  "Technology Analyst",
+
+  "Intern",
+  "Software Engineering Intern",
+  "Data Analyst Intern",
+  "Machine Learning Intern",
+  "Frontend Intern",
+  "Backend Intern",
+];
 
 const statusColor: Record<string, string> = {
   Applied: "bg-primary/20 text-primary border-primary/30",
@@ -43,6 +171,30 @@ const statusColor: Record<string, string> = {
   Offer: "bg-success/20 text-success border-success/30",
   Rejected: "bg-destructive/20 text-destructive border-destructive/30",
   Ghosted: "bg-muted text-muted-foreground border-border",
+};
+const isValidCompany = (name: string) => {
+  const trimmed = name.trim();
+
+  if (trimmed.length < 2) return false;
+
+  if (/^[^a-zA-Z]+$/.test(trimmed)) return false;
+
+  if (/^(.)\1{4,}$/.test(trimmed)) return false;
+
+  return true;
+};
+
+const isValidUrl = (url: string) => {
+  try {
+    const parsed = new URL(url.trim());
+
+    return (
+      parsed.protocol === "http:" ||
+      parsed.protocol === "https:"
+    );
+  } catch {
+    return false;
+  }
 };
 
 // --- Drag and Drop Wrappers ---
@@ -56,7 +208,9 @@ function SortableColumn({ id, children }: { id: string; children: React.ReactNod
       {children}
     </div>
   );
+
 }
+
 
 function SortableCard({ job, onClick, isOverdue }: { job: JobApplication; onClick: () => void; isOverdue: boolean }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
@@ -102,19 +256,51 @@ interface JobTrackerPageProps {
   sessions: InterviewSession[];
   onAddJob: (input: CreateJobApplicationInput) => Promise<JobApplication>;
   onUpdateJob: (id: string, updates: Partial<JobApplication>) => Promise<JobApplication>;
+  onDeleteJob: (id: string) => void;
   userId: string;
 }
 
-export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }: JobTrackerPageProps) {
+export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, onDeleteJob, userId }: JobTrackerPageProps) {
   const [view, setView] = useState<"kanban" | "table">("kanban");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobApplication | null>(null);
   const [draftJob, setDraftJob] = useState<JobApplication | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [deletingJob, setDeletingJob] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<string | null>(null);
   const [form, setForm] = useState({ companyName: "", jobTitle: "", jobUrl: "", status: "Applied" as Status });
   const { toast } = useToast();
 
+  const validateJobDetails = (companyName: string, jobTitle: string, jobUrl: string) => {
+    if (!isValidCompany(companyName)) {
+      toast({
+        title: "Invalid company name",
+        description: "Please enter a valid company name.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    if (!jobTitle.trim()) {
+      toast({
+        title: "Invalid job title",
+        description: "Job title cannot be empty.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    if (!isValidUrl(jobUrl)) {
+      toast({
+        title: "Invalid job URL",
+        description: "Please enter a valid application URL.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
+
   // Optimistic jobs state for DnD
+  const [jobRoleOpen, setJobRoleOpen] = useState(false);
   const [localJobs, setLocalJobs] = useState<JobApplication[]>(jobs);
   const localJobsRef = useRef(jobs);
   const [activeJob, setActiveJob] = useState<JobApplication | null>(null);
@@ -150,6 +336,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }
   );
 
   const handleAdd = async () => {
+    if (!validateJobDetails(form.companyName, form.jobTitle, form.jobUrl)) return;
     try {
       const job = await onAddJob({
         companyName: form.companyName,
@@ -203,6 +390,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }
 
   const saveDraftJob = async () => {
     if (!draftJob) return;
+    if (!validateJobDetails(draftJob.companyName, draftJob.jobTitle, draftJob.jobUrl)) return;
     setSavingDraft(true);
     try {
       const updated = await onUpdateJob(draftJob.id, {
@@ -227,6 +415,33 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }
       });
     } finally {
       setSavingDraft(false);
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    setDeletingJob(true);
+    try {
+      await apiRequest(`/api/users/${userId}/jobs/${jobId}`, {
+        method: "DELETE",
+      });
+
+      onDeleteJob(jobId);
+
+      setLocalJobs((prev) => prev.filter((j) => j.id !== jobId));
+      if (selectedJob?.id === jobId) {
+        setSelectedJob(null);
+        setDraftJob(null);
+      }
+      toast({ title: "Deleted", description: "Job application has been removed." });
+    } catch (error) {
+      toast({
+        title: "Unable to delete application",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingJob(false);
+      setJobToDelete(null);
     }
   };
 
@@ -379,11 +594,31 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }
                   </div>
                   <div>
                     <Label>Job Title</Label>
-                    <Input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} className="mt-1 bg-secondary/50" />
+
+                    <Input
+                      list="job-roles"
+                      placeholder="e.g. Software Engineer"
+                      value={form.jobTitle}
+                      onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+                      className="mt-1 bg-secondary/50"
+                    />
+                    <datalist id="job-roles">
+                      {JOB_ROLES.map((role) => (
+                        <option key={role} value={role} />
+                      ))}
+                    </datalist>
                   </div>
                   <div>
                     <Label>Job URL</Label>
-                    <Input value={form.jobUrl} onChange={(e) => setForm({ ...form, jobUrl: e.target.value })} className="mt-1 bg-secondary/50" />
+                    <Input
+                      type="url"
+                      placeholder="https://company.com/job"
+                      value={form.jobUrl}
+                      onChange={(e) =>
+                        setForm({ ...form, jobUrl: e.target.value })
+                      }
+                      className="mt-1 bg-secondary/50"
+                    />
                   </div>
                   <div>
                     <Label>Status</Label>
@@ -489,12 +724,15 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }
                 <Label>Notes</Label>
                 <Textarea value={draftJob.notes} onChange={(e) => setDraftJob({ ...draftJob, notes: e.target.value })} className="mt-1 bg-secondary/50" rows={4} />
               </div>
-              <div className="flex gap-3">
-                <Button onClick={saveDraftJob} disabled={savingDraft} className="gradient-primary text-primary-foreground">
+              <div className="flex gap-3 mt-4">
+                <Button onClick={saveDraftJob} disabled={savingDraft || deletingJob} className="gradient-primary text-primary-foreground">
                   {savingDraft ? "Saving..." : "Save Changes"}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setDraftJob(selectedJob)}>
+                <Button type="button" variant="outline" onClick={() => setDraftJob(selectedJob)} disabled={savingDraft || deletingJob}>
                   Reset
+                </Button>
+                <Button type="button" variant="destructive" onClick={() => setJobToDelete(draftJob.id)} disabled={savingDraft || deletingJob}>
+                  {deletingJob ? "Deleting..." : "Delete"}
                 </Button>
               </div>
             </div>
@@ -617,6 +855,32 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }
           </Button>
         </div>
       )}
+
+      <AlertDialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the job application.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingJob}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (jobToDelete) {
+                  handleDeleteJob(jobToDelete);
+                }
+              }}
+              disabled={deletingJob}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingJob ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
