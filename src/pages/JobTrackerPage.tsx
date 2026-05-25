@@ -49,7 +49,10 @@ const statusColor: Record<string, string> = {
 function SortableColumn({ id, children }: { id: string; children: React.ReactNode }) {
   const { setNodeRef } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className="min-w-[260px] flex-shrink-0 flex flex-col max-h-full">
+    <div
+      ref={setNodeRef}
+      className="min-w-[260px] w-[260px] flex-shrink-0 flex flex-col max-h-full overflow-hidden"
+    >
       {children}
     </div>
   );
@@ -74,16 +77,18 @@ function SortableCard({ job, onClick, isOverdue }: { job: JobApplication; onClic
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`rounded-xl bg-card border p-3 cursor-pointer hover:border-primary/30 transition-all ${isOverdue ? "border-destructive/50 shadow-[0_0_10px_-3px_hsl(var(--destructive)/0.4)]" : "border-border"
+      className={`rounded-xl bg-card border p-3 cursor-pointer hover:border-primary/30 transition-all overflow-hidden min-w-0 ${isOverdue ? "border-destructive/50 shadow-[0_0_10px_-3px_hsl(var(--destructive)/0.4)]" : "border-border"
         } ${isDragging ? "opacity-50 scale-105 shadow-2xl z-50 relative" : ""}`}
     >
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-2 mb-1 min-w-0">
         <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
           {job.companyName.charAt(0)}
         </div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">{job.companyName}</p>
-          <p className="text-xs text-muted-foreground truncate">{job.jobTitle}</p>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <p className="text-sm font-medium text-foreground overflow-hidden text-ellipsis whitespace-nowrap max-w-full">
+            {job.companyName}
+          </p>
+          <p className="text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap max-w-full">{job.jobTitle}</p>
         </div>
       </div>
       <p className="text-xs text-muted-foreground">{job.dateApplied}</p>
@@ -572,7 +577,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }
                 ) : (
                   localJobs.map((job) => (
                     <tr key={job.id} className="border-b border-border/50 hover:bg-secondary/20 cursor-pointer" onClick={() => setSelectedJob(job)}>
-                      <td className="py-3 px-4 font-medium text-foreground">{job.companyName}</td>
+                      <td className="py-3 px-4 font-medium text-foreground max-w-[220px] truncate">{job.companyName}</td>
                       <td className="py-3 px-4 text-muted-foreground">{job.jobTitle}</td>
                       <td className="py-3 px-4 text-muted-foreground">{job.dateApplied}</td>
                       <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
@@ -592,7 +597,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob }
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="py-3 px-4 text-muted-foreground">{job.location || "—"}</td>
+                      <td className="py-3 px-4 text-muted-foreground max-w-[220px] truncate">{job.location || "—"}</td>
                     </tr>
                   ))
                 )}

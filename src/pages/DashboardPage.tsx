@@ -80,53 +80,53 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <div
-        onClick={() => navigate("/interview-prep")}
-        className="cursor-pointer transition hover:scale-[1.02]"
-      >
-        <StatCard
-          icon={BookOpen}
-          label="Prep Sessions"
-          value={sessions.length}
-        />
-      </div>
+        <div
+          onClick={() => navigate("/interview-prep")}
+          className="cursor-pointer transition hover:scale-[1.02]"
+        >
+          <StatCard
+            icon={BookOpen}
+            label="Prep Sessions"
+            value={sessions.length}
+          />
+        </div>
 
-      <div
-        onClick={() => navigate("/mock-interview")}
-        className="cursor-pointer transition hover:scale-[1.02]"
-      >
-        <StatCard
-          icon={MessageSquare}
-          label="Mock Interviews"
-          value={mocks.length}
-          gradient="gradient-accent"
-        />
-      </div>
+        <div
+          onClick={() => navigate("/mock-interview")}
+          className="cursor-pointer transition hover:scale-[1.02]"
+        >
+          <StatCard
+            icon={MessageSquare}
+            label="Mock Interviews"
+            value={mocks.length}
+            gradient="gradient-accent"
+          />
+        </div>
 
-      <div
-        onClick={() => navigate("/job-tracker")}
-        className="cursor-pointer transition hover:scale-[1.02]"
-      >
-        <StatCard
-          icon={Briefcase}
-          label="Jobs Applied"
-          value={jobs.length}
-          gradient="gradient-warm"
-        />
-      </div>
+        <div
+          onClick={() => navigate("/job-tracker")}
+          className="cursor-pointer transition hover:scale-[1.02]"
+        >
+          <StatCard
+            icon={Briefcase}
+            label="Jobs Applied"
+            value={jobs.length}
+            gradient="gradient-warm"
+          />
+        </div>
 
-      <div
-        onClick={() => navigate("/progress")}
-        className="cursor-pointer transition hover:scale-[1.02]"
-      >
-        <StatCard
-          icon={TrendingUp}
-          label="Avg Mock Score"
-          value={`${avgScore * 10}/100`}
-          gradient="gradient-success"
-        />
+        <div
+          onClick={() => navigate("/progress")}
+          className="cursor-pointer transition hover:scale-[1.02]"
+        >
+          <StatCard
+            icon={TrendingUp}
+            label="Avg Mock Score"
+            value={`${avgScore * 10}/100`}
+            gradient="gradient-success"
+          />
+        </div>
       </div>
-    </div>
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
@@ -155,7 +155,7 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
               {recentSessions.map((s) => (
                 <div
                   key={s.id}
-                  className="rounded-xl bg-card border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
+                  className="rounded-xl bg-card border border-border p-4 flex items-center justify-between gap-3 overflow-hidden hover:border-primary/30 transition-colors"
                 >
                   <div>
                     <p className="font-medium text-foreground text-sm">{s.company}</p>
@@ -187,9 +187,14 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
                   key={j.id}
                   className="rounded-xl bg-card border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
                 >
-                  <div>
-                    <p className="font-medium text-foreground text-sm">{j.companyName}</p>
-                    <p className="text-xs text-muted-foreground">{j.jobTitle}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-foreground text-sm truncate">
+                      {j.companyName}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground truncate">
+                      {j.jobTitle}
+                    </p>
                   </div>
                   <Badge className={statusColor[j.status] || ""}>
                     {j.status}
