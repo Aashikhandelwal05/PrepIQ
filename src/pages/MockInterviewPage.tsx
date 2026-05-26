@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   MessageSquare, Loader2, CheckCircle, XCircle,
-  ChevronDown, ChevronUp, Activity, Sparkles, RefreshCw,
+  ChevronDown, ChevronUp, Activity, Sparkles, RefreshCw, Timer, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,8 +36,17 @@ const ROLES = [
 ] as const;
 
 const DIFFICULTIES = ["Easy", "Medium", "Hard"] as const;
+const TIMER_OPTIONS = [
+  { value: "60", label: "1 min" },
+  { value: "120", label: "2 min" },
+  { value: "180", label: "3 min" },
+  { value: "none", label: "No limit" },
+] as const;
+const DEFAULT_TIMER_OPTION: TimerOption = "120";
+const TIMER_WARNING_THRESHOLD_SECONDS = 30;
 
 type Difficulty = (typeof DIFFICULTIES)[number];
+type TimerOption = (typeof TIMER_OPTIONS)[number]["value"];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -138,6 +147,12 @@ function getLocalFallbackQuestion(role: string, difficulty: string): string {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+function formatCountdown(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 async function fetchGeneratedQuestion(userId: string, role: string, difficulty: string): Promise<string> {
   try {
     const data = await apiRequest<{ question: string }>(`/api/users/${userId}/mock/generate-question`, {
@@ -172,9 +187,55 @@ export default function MockInterviewPage({
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("Medium");
   const [generating, setGenerating] = useState(false);
+  const [timerOption, setTimerOption] = useState<TimerOption>(DEFAULT_TIMER_OPTION);
+  const [remainingSeconds, setRemainingSeconds] = useState(120);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [autoSubmitted, setAutoSubmitted] = useState(false);
   // ───────────────────────────────────────────────────────────────────────
 
-  const handleSelectQuestion = (q: string) => setQuestion(q);
+  const timerLimitSeconds = timerOption === "none" ? null : Number(timerOption);
+  const hasActiveQuestion = question.trim().length > 0 && !result;
+  const isNoLimitTimer = timerLimitSeconds == null;
+  const isTimerWarning = !isNoLimitTimer && remainingSeconds <= TIMER_WARNING_THRESHOLD_SECONDS;
+  const timerProgressPercent =
+    timerLimitSeconds && timerLimitSeconds > 0
+      ? Math.max(0, Math.min(100, (remainingSeconds / timerLimitSeconds) * 100))
+      : 0;
+
+  const applyTimerOption = (nextOption: TimerOption) => {
+    setTimerOption(nextOption);
+
+    const nextLimit = nextOption === "none" ? null : Number(nextOption);
+    if (nextLimit == null) {
+      setRemainingSeconds(0);
+      setIsTimerRunning(false);
+    } else {
+      setRemainingSeconds(nextLimit);
+      setIsTimerRunning(hasActiveQuestion && !loading);
+    }
+    setAutoSubmitted(false);
+  };
+
+  const resetTimerForQuestion = () => {
+    if (timerLimitSeconds == null) {
+      setRemainingSeconds(0);
+      setIsTimerRunning(false);
+    } else {
+      setRemainingSeconds(timerLimitSeconds);
+      setIsTimerRunning(true);
+    }
+    setAutoSubmitted(false);
+  };
+
+  const beginQuestion = (nextQuestion: string) => {
+    setQuestion(nextQuestion);
+    setAnswer("");
+    setResult(null);
+    setShowModel(false);
+    resetTimerForQuestion();
+  };
+
+  const handleSelectQuestion = (q: string) => beginQuestion(q);
 
   // ── NEW: Generate question handler ─────────────────────────────────────
   const handleGenerateQuestion = async () => {
@@ -189,8 +250,7 @@ export default function MockInterviewPage({
     setGenerating(true);
     try {
       const q = await fetchGeneratedQuestion(userId, selectedRole, selectedDifficulty);
-      setQuestion(q);
-      setResult(null); // clear previous result when a new question is loaded
+      beginQuestion(q);
       toast({ title: "Question generated!", description: `${selectedDifficulty} · ${selectedRole}` });
     } catch (error) {
       toast({
@@ -204,10 +264,11 @@ export default function MockInterviewPage({
   };
   // ───────────────────────────────────────────────────────────────────────
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!question.trim() || !answer.trim()) return;
+  const submitAnswer = useCallback(async (isTimeout = false) => {
+    if (!question.trim()) return;
+    if (!isTimeout && !answer.trim()) return;
     setLoading(true);
+    setIsTimerRunning(false);
     try {
       const attempt = await onAddAttempt({
         sessionId: selectedSession !== "custom" ? selectedSession : "",
@@ -225,7 +286,53 @@ export default function MockInterviewPage({
     } finally {
       setLoading(false);
     }
+  }, [answer, onAddAttempt, question, selectedSession, toast]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitAnswer(false);
   };
+
+  useEffect(() => {
+    if (timerLimitSeconds == null) return;
+    if (!isTimerRunning || loading || !!result) return;
+    if (remainingSeconds <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(intervalId);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isTimerRunning, loading, remainingSeconds, result, timerLimitSeconds]);
+
+  useEffect(() => {
+    if (timerLimitSeconds == null) return;
+    if (!isTimerRunning || loading || !!result) return;
+    if (remainingSeconds > 0 || autoSubmitted) return;
+
+    setAutoSubmitted(true);
+    setIsTimerRunning(false);
+    toast({
+      title: "Time is up",
+      description: "Your answer was auto-submitted.",
+    });
+    void submitAnswer(true);
+  }, [
+    autoSubmitted,
+    isTimerRunning,
+    loading,
+    remainingSeconds,
+    result,
+    timerLimitSeconds,
+    toast,
+    submitAnswer,
+  ]);
 
   const scoreColor = (s: number) =>
     s >= 8
@@ -365,7 +472,23 @@ export default function MockInterviewPage({
             <Label>Question</Label>
             <Textarea
               value={question}
-              onChange={(e) => setQuestion(e.target.value)}
+              onChange={(e) => {
+                const nextQuestion = e.target.value;
+                const hadQuestion = question.trim().length > 0;
+                const hasQuestionNow = nextQuestion.trim().length > 0;
+
+                setQuestion(nextQuestion);
+                if (!hadQuestion && hasQuestionNow) {
+                  resetTimerForQuestion();
+                }
+                if (hadQuestion && !hasQuestionNow) {
+                  setIsTimerRunning(false);
+                  setAutoSubmitted(false);
+                  if (timerLimitSeconds != null) {
+                    setRemainingSeconds(timerLimitSeconds);
+                  }
+                }
+              }}
               placeholder="Enter or paste an interview question, or generate one above…"
               rows={2}
               className="mt-1 bg-secondary/50"
@@ -373,7 +496,80 @@ export default function MockInterviewPage({
             />
           </div>
           <div>
-            <Label>Your Answer</Label>
+            <div className="space-y-2 mb-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label>Your Answer</Label>
+                <Select value={timerOption} onValueChange={(v) => applyTimerOption(v as TimerOption)}>
+                  <SelectTrigger className="h-8 w-[140px] bg-secondary/50 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMER_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div
+                className={`rounded-xl border p-3 transition-colors ${
+                  isNoLimitTimer
+                    ? "border-border bg-secondary/20"
+                    : isTimerWarning
+                    ? "border-destructive/40 bg-destructive/10"
+                    : "border-primary/30 bg-primary/5"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {isTimerWarning ? (
+                      <AlertTriangle className="w-4 h-4 text-destructive" />
+                    ) : (
+                      <Timer className="w-4 h-4 text-primary" />
+                    )}
+                    <span className="text-xs font-medium text-muted-foreground">Answer Timer</span>
+                  </div>
+
+                  {isNoLimitTimer ? (
+                    <Badge variant="outline" className="border-border text-muted-foreground">
+                      No limit
+                    </Badge>
+                  ) : (
+                    <span
+                      className={`font-mono text-2xl font-bold tabular-nums ${
+                        isTimerWarning ? "text-destructive" : "text-foreground"
+                      }`}
+                    >
+                      {formatCountdown(remainingSeconds)}
+                    </span>
+                  )}
+                </div>
+
+                {!isNoLimitTimer && (
+                  <>
+                    <div className="mt-3 h-2 w-full rounded-full bg-secondary/50 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-700 ${
+                          isTimerWarning ? "bg-destructive" : "bg-primary"
+                        }`}
+                        style={{ width: `${timerProgressPercent}%` }}
+                      />
+                    </div>
+                    <p className={`mt-2 text-xs ${isTimerWarning ? "text-destructive" : "text-muted-foreground"}`}>
+                      {!hasActiveQuestion
+                        ? "Timer starts when a question is set."
+                        : loading
+                        ? "Submitting answer..."
+                        : isTimerWarning
+                        ? `Hurry up: less than ${TIMER_WARNING_THRESHOLD_SECONDS} seconds left.`
+                        : "Timer is running."}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
             <Textarea
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
