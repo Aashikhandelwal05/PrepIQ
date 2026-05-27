@@ -175,7 +175,7 @@ class PrepIQApiTestCase(unittest.TestCase):
 
     def test_ml_endpoints_payload_size_limit(self) -> None:
         _, headers = self.create_account()
-        large_text = "a" * 11000
+        large_text = "a" * (5 * 1024 * 1024 + 1)
         response = self.client.post(
             "/api/ml/extract-skills",
             headers=headers,
