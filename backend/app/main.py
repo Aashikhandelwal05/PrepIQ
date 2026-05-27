@@ -1041,7 +1041,7 @@ def require_current_user(
 def validate_payload_size(request: Request) -> None:
     if "content-length" in request.headers:
         length = int(request.headers["content-length"])
-        if length > 10240:
+        if length > 5242880:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail="Request entity too large",
