@@ -731,7 +731,8 @@ async def generate_session_payload(
         )
 
     # Fallback: use ML match score as readiness when OpenRouter is unavailable
-    readiness = compute_match_score(resume_text, jd_text)
+    scores = compute_match_score(resume_text, jd_text)
+    readiness = scores["overallScore"]
     gap_analysis = [
         GapItem(skill="React", have="Intermediate", need="Advanced", gapLevel="Medium"),
         GapItem(skill="System Design", have="Basic", need="Advanced", gapLevel="High"),
@@ -1293,7 +1294,8 @@ async def create_session(
 
     # --- ML: extract skills from resume ---
     skills = extract_skills(payload.resumeText)
-    ml_score = compute_match_score(payload.resumeText, payload.jdText)
+    scores = compute_match_score(payload.resumeText, payload.jdText)
+    ml_score = scores["overallScore"]
 
     row = InterviewSessionTable(
         id=str(uuid4()),
@@ -1661,6 +1663,9 @@ class MatchScoreRequest(BaseModel):
 
 class MatchScoreResponse(BaseModel):
     score: int
+    overallScore: int
+    semanticScore: int
+    keywordOverlapScore: int
     label: str
 
 
@@ -1684,7 +1689,8 @@ def ml_extract_skills(payload: ExtractSkillsRequest) -> ExtractSkillsResponse:
     dependencies=[Depends(require_current_user), Depends(validate_payload_size)],
 )
 def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
-    score = compute_match_score(payload.resumeText, payload.jdText)
+    scores = compute_match_score(payload.resumeText, payload.jdText)
+    score = scores["overallScore"]
     label = (
         "Strong match"
         if score >= 70
@@ -1692,7 +1698,13 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
         if score >= 50
         else "Weak match"
     )
-    return MatchScoreResponse(score=score, label=label)
+    return MatchScoreResponse(
+        score=score,
+        overallScore=scores["overallScore"],
+        semanticScore=scores["semanticScore"],
+        keywordOverlapScore=scores["keywordOverlapScore"],
+        label=label
+    )
 
 
 @app.post(
