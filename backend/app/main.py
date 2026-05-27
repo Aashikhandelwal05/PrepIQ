@@ -12,6 +12,11 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 from uuid import uuid4
+# pyrefly: ignore [missing-import]
+from dotenv import load_dotenv
+from pathlib import Path
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 import httpx
 from fastapi import (
@@ -37,6 +42,7 @@ from sqlalchemy import (
     delete,
     func,
     select,
+    ForeignKey,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
@@ -97,6 +103,14 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 
 class Base(DeclarativeBase):
     pass
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def today_iso() -> str:
+    return utc_now().date().isoformat()
 
 
 class UserTable(Base):
@@ -186,12 +200,24 @@ class JobApplicationTable(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+class MentorConversationTable(Base):
+    __tablename__ = "mentor_conversations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
-def today_iso() -> str:
-    return utc_now().date().isoformat()
+class MentorChatMessageTable(Base):
+    __tablename__ = "mentor_chat_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("mentor_conversations.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(20)) # "user" or "assistant"
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 def get_db() -> Session:
@@ -530,7 +556,7 @@ def stable_number(seed: str, minimum: int, maximum: int) -> int:
 
 
 async def call_openrouter_json(
-    system_prompt: str, user_prompt: str, client: httpx.AsyncClient | None = None
+    system_prompt: str, user_prompt: str, client: httpx.AsyncClient | None = None, history: list[dict[str, str]] | None = None
 ) -> dict[str, Any]:
     if GEMINI_API_KEY:
         url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -553,13 +579,15 @@ async def call_openrouter_json(
         }
         provider_name = "OpenRouter"
 
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user_prompt})
+
     payload = {
         "model": model,
         "response_format": {"type": "json_object"},
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
+        "messages": messages,
     }
 
     max_retries = 3
@@ -1703,3 +1731,228 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
 def ml_analyze_confidence(payload: ConfidenceRequest) -> ConfidenceAnalysis:
     result = analyze_confidence(payload.text)
     return ConfidenceAnalysis(**result)
+
+
+# ---------------------------------------------------------------------------
+# Mentor Chat Endpoint
+# ---------------------------------------------------------------------------
+
+class MentorChatRequest(BaseModel):
+    conversation_id: str | None = None
+    message: str
+    skills: list[str]
+    readiness_score: float
+    profile: dict[str, Any]
+
+
+class MentorChatResponse(BaseModel):
+    reply: str
+    conversation_id: str
+
+
+@app.post("/api/users/{user_id}/mentor-chat", response_model=MentorChatResponse)
+async def mentor_chat(
+    user_id: str,
+    payload: MentorChatRequest,
+    request: Request,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> MentorChatResponse:
+    client = getattr(request.app.state, "httpx_client", None)
+
+    profile_str = json.dumps(payload.profile) if payload.profile else "Not provided"
+    skills_str = ", ".join(payload.skills) if payload.skills else "Not provided"
+
+    system_prompt = (
+        "You are PrepIQ AI Mentor, a smart AI career coach focused on software engineering careers, internships, placements, interview preparation, and technical skill growth.\n\n"
+        "Your personality:\n"
+        "- conversational like ChatGPT/Claude\n"
+        "- casual but intelligent\n"
+        "- supportive but realistic\n"
+        "- practical, not motivational fluff\n"
+        "- specific and domain-aware\n"
+        "- clear and actionable\n\n"
+        "You specialize in:\n"
+        "- software engineering careers\n"
+        "- backend/frontend/fullstack guidance\n"
+        "- AI/ML career guidance\n"
+        "- DSA preparation\n"
+        "- interview readiness analysis\n"
+        "- mock interview feedback\n"
+        "- resume improvement\n"
+        "- job application strategy\n"
+        "- internship roadmaps\n"
+        "- skill prioritization\n"
+        "- realistic career planning\n\n"
+        "Strict rules:\n"
+        "- NEVER hallucinate user details\n"
+        "- NEVER invent skills, work experience, companies, projects, or education\n"
+        "- ONLY use actual PrepIQ user context\n"
+        "- if information is missing, ask natural follow-up questions instead of guessing\n"
+        "- never give generic canned responses\n"
+        "- responses must feel personalized and contextual\n\n"
+        "Response style:\n"
+        "- sound human and natural\n"
+        "- explain reasoning clearly\n"
+        "- compare options when useful\n"
+        "- break advice into actionable steps\n"
+        "- be honest about weaknesses and gaps\n"
+        "- provide timelines when relevant\n\n"
+        "Return valid JSON only. Do not include markdown or explanations outside the JSON.\n"
+        'Use exactly this schema: {"reply": "string"}. '
+    )
+
+    user_prompt = (
+        f"--- USER CONTEXT ---\n"
+        f"Readiness Score: {payload.readiness_score}\n"
+        f"Skills: {skills_str}\n"
+        f"Profile Data (including prep context, mock performance, and job tracker): {profile_str}\n"
+        f"--------------------\n\n"
+        f"User Message: {payload.message}\n\n"
+        "Please provide your reply following the strict rules."
+    )
+
+    history = []
+    conv_id = payload.conversation_id
+    now = utc_now()
+
+    if not conv_id:
+        conv_id = str(uuid4())
+        title = payload.message[:30] + ("..." if len(payload.message) > 30 else "")
+        new_conv = MentorConversationTable(
+            id=conv_id, user_id=user_id, title=title, created_at=now, updated_at=now
+        )
+        db.add(new_conv)
+    else:
+        conv = db.scalar(
+            select(MentorConversationTable).where(
+                MentorConversationTable.id == conv_id,
+                MentorConversationTable.user_id == user_id,
+            )
+        )
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        # Load history
+        stmt = (
+            select(MentorChatMessageTable)
+            .where(MentorChatMessageTable.conversation_id == conv_id)
+            .order_by(MentorChatMessageTable.created_at.desc())
+            .limit(15)
+        )
+        history_records = db.scalars(stmt).all()
+        for r in reversed(history_records):
+            history.append({"role": r.role, "content": r.content})
+
+    try:
+        response = await call_openrouter_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            client=client,
+            history=history,
+        )
+        
+        # Standardize response keys to handle case variations
+        if isinstance(response, list) and len(response) > 0:
+            response = response[0]
+        if not isinstance(response, dict):
+            response = {}
+        norm_res = {k.lower(): v for k, v in response.items()}
+        
+        reply_text = str(norm_res.get("reply", "")).strip()
+        if not reply_text:
+            raise OpenRouterError("Empty reply returned")
+            
+        # Save messages to DB
+        db.add(MentorChatMessageTable(id=str(uuid4()), conversation_id=conv_id, role="user", content=payload.message, created_at=now))
+        db.add(MentorChatMessageTable(id=str(uuid4()), conversation_id=conv_id, role="assistant", content=reply_text, created_at=utc_now()))
+        
+        # Update conversation updated_at
+        conv_to_update = db.scalar(select(MentorConversationTable).where(MentorConversationTable.id == conv_id))
+        if conv_to_update:
+            conv_to_update.updated_at = utc_now()
+            
+        db.commit()
+            
+        return MentorChatResponse(reply=reply_text, conversation_id=conv_id)
+
+    except (OpenRouterError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("Mentor chat openrouter error: %s", exc)
+        return MentorChatResponse(
+            reply="I'm here to help you with your career goals, but I'm currently experiencing technical difficulties. Let's discuss your skills and readiness when I'm back online!",
+            conversation_id=conv_id or ""
+        )
+
+class ConversationResponse(BaseModel):
+    id: str
+    title: str
+    updated_at: str
+
+@app.get("/api/users/{user_id}/mentor-chat/conversations", response_model=list[ConversationResponse])
+def get_conversations(
+    user_id: str,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> list[ConversationResponse]:
+    stmt = (
+        select(MentorConversationTable)
+        .where(MentorConversationTable.user_id == user_id)
+        .order_by(MentorConversationTable.updated_at.desc())
+    )
+    convs = db.scalars(stmt).all()
+    return [
+        ConversationResponse(id=c.id, title=c.title, updated_at=c.updated_at.isoformat())
+        for c in convs
+    ]
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: str
+
+@app.get("/api/users/{user_id}/mentor-chat/conversations/{conversation_id}", response_model=list[ChatMessageResponse])
+def get_conversation_history(
+    user_id: str,
+    conversation_id: str,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> list[ChatMessageResponse]:
+    conv = db.scalar(
+        select(MentorConversationTable).where(
+            MentorConversationTable.id == conversation_id,
+            MentorConversationTable.user_id == user_id,
+        )
+    )
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+        
+    stmt = (
+        select(MentorChatMessageTable)
+        .where(MentorChatMessageTable.conversation_id == conversation_id)
+        .order_by(MentorChatMessageTable.created_at.asc())
+    )
+    msgs = db.scalars(stmt).all()
+    return [
+        ChatMessageResponse(id=m.id, role=m.role, content=m.content, created_at=m.created_at.isoformat())
+        for m in msgs
+    ]
+
+@app.delete("/api/users/{user_id}/mentor-chat/conversations/{conversation_id}", status_code=204)
+def delete_conversation(
+    user_id: str,
+    conversation_id: str,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+):
+    conv = db.scalar(
+        select(MentorConversationTable).where(
+            MentorConversationTable.id == conversation_id,
+            MentorConversationTable.user_id == user_id,
+        )
+    )
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+        
+    db.delete(conv) # Cascades to messages due to FK
+    db.commit()

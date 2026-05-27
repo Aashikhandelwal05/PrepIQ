@@ -10,6 +10,7 @@ import {
   Sun,
   Moon,
   SunMoon,
+  Bot,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { NavLink } from "@/components/NavLink";
@@ -32,6 +33,7 @@ const navItems = [
   { title: "Interview Prep", url: "/interview-prep", icon: BookOpen },
   { title: "Mock Interview", url: "/mock-interview", icon: MessageSquare },
   { title: "Job Tracker", url: "/job-tracker", icon: Briefcase },
+  { title: "AI Mentor Chat", url: "/mentor-chat", icon: Bot },
   { title: "Progress", url: "/progress", icon: TrendingUp },
 ];
 
