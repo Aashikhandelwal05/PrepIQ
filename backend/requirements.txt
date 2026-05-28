@@ -11,3 +11,4 @@ ruff
 pdfplumber
 python-docx
 python-multipart
+sentence-transformers
