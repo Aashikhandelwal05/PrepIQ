@@ -1183,7 +1183,7 @@ def get_profile(
 def save_profile(
     user_id: str,
     profile: CareerProfile,
-    _: UserTable = Depends(require_current_user),
+    user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> CareerProfile:
     if profile.userId != user_id:
@@ -1192,6 +1192,7 @@ def save_profile(
         )
 
     payload = profile.model_dump(by_alias=True)
+    payload["email"] = user.email
     existing = db.get(ProfileTable, user_id)
     if existing:
         existing.full_name = payload["fullName"]
