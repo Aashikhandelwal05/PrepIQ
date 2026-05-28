@@ -1,4 +1,9 @@
 import { LucideIcon } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -6,6 +11,7 @@ interface StatCardProps {
   value: string | number;
   gradient?: string;
   onClick?: () => void;
+  tooltip?: string;
 }
 
 export function StatCard({
@@ -14,8 +20,9 @@ export function StatCard({
   value,
   gradient = "gradient-primary",
   onClick,
+  tooltip,
 }: StatCardProps) {
-  return (
+  const card = (
     <div
       onClick={onClick}
       role={onClick ? "button" : undefined}
@@ -44,5 +51,18 @@ export function StatCard({
         </div>
       </div>
     </div>
+  );
+
+  if (!tooltip) return card;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {card}
+      </TooltipTrigger>
+      <TooltipContent>
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
   );
 }

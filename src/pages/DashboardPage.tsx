@@ -9,12 +9,6 @@ import {
   ArrowRight,
   Plus,
 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/StatCard";
@@ -84,65 +78,43 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
         </div>
       )}
 
-      {/* Stats */}
-      <TooltipProvider>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <StatCard
-                icon={BookOpen}
-                label="Prep Sessions"
-                value={sessions.length}
-                onClick={() => navigate("/interview-prep")}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              Click to view your interview prep sessions
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <StatCard
-                icon={MessageSquare}
-                label="Mock Interviews"
-                value={mocks.length}
-                gradient="gradient-accent"
-                onClick={() => navigate("/mock-interviews")}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              Click to view your mock interviews
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <StatCard
-                icon={Briefcase}
-                label="Jobs Applied"
-                value={jobs.length}
-                gradient="gradient-warm"
-                onClick={() => navigate("/job-tracker")}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              Click to view your job applications
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <StatCard
-                icon={TrendingUp}
-                label="Avg Mock Score"
-                value={`${avgScore * 10}/100`}
-                gradient="gradient-success"
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              Average score across all mock interviews
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
+      {/*Stats*/}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          icon={BookOpen}
+          label="Prep Sessions"
+          value={sessions.length}
+          tooltip="Click to view your interview prep sessions"
+          onClick={() => navigate("/interview-prep")}
+        />
+
+        <StatCard
+          icon={MessageSquare}
+          label="Mock Interviews"
+          value={mocks.length}
+          gradient="gradient-accent"
+          tooltip="Click to view your mock interview history"
+          onClick={() => navigate("/mock-interview")}
+        />
+
+        <StatCard
+          icon={Briefcase}
+          label="Jobs Applied"
+          value={jobs.length}
+          gradient="gradient-warm"
+          tooltip="Click to view your job applications"
+          onClick={() => navigate("/job-tracker")}
+        />
+
+        <StatCard
+          icon={TrendingUp}
+          label="Avg Mock Score"
+          value={`${avgScore * 10}/100`}
+          gradient="gradient-success"
+          tooltip="Average score across all mock interviews"
+        />
+      </div>
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
