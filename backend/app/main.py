@@ -29,7 +29,7 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -155,6 +155,7 @@ class InterviewSessionTable(Base):
     company: Mapped[str] = mapped_column(String(255))
     jd_text: Mapped[str] = mapped_column(Text)
     resume_text: Mapped[str] = mapped_column(Text)
+    is_estimated: Mapped[bool] = mapped_column(Boolean, default=False)
     gap_analysis: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     readiness_score: Mapped[int] = mapped_column(Integer)
     question_bank: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
@@ -377,6 +378,7 @@ class InterviewSession(BaseModel):
     company: str
     jdText: str
     resumeText: str
+    isEstimated: bool
     gapAnalysis: list[GapItem]
     readinessScore: int
     questionBank: list[QuestionItem]
@@ -391,6 +393,13 @@ class CreateInterviewSessionRequest(BaseModel):
     company: str
     jdText: str = ""
     resumeText: str = ""
+
+    @field_validator("jobTitle", "company", mode="after")
+    @classmethod
+    def check_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("cannot be empty or whitespace-only")
+        return v
 
 
 class ConfidenceAnalysis(BaseModel):
@@ -515,6 +524,7 @@ def session_from_table(session: InterviewSessionTable) -> InterviewSession:
         company=session.company,
         jdText=session.jd_text,
         resumeText=session.resume_text,
+        isEstimated=session.is_estimated,
         gapAnalysis=session.gap_analysis,
         readinessScore=session.readiness_score,
         questionBank=session.question_bank,
@@ -782,14 +792,15 @@ async def generate_session_payload(
         ]
 
         if len(roadmap) >= 1 and len(question_bank) >= 1 and len(gap_analysis) >= 1:
-            return gap_analysis, readiness, question_bank, roadmap
+            return gap_analysis, readiness, question_bank, roadmap, False
     except (OpenRouterError, KeyError, TypeError, ValueError) as exc:
         logger.warning(
             "Using fallback prep session payload because OpenRouter failed: %s", exc
         )
 
     # Fallback: use ML match score as readiness when OpenRouter is unavailable
-    readiness = compute_match_score(resume_text, jd_text)
+    scores = compute_match_score(resume_text, jd_text)
+    readiness = scores["overallScore"]
     gap_analysis = [
         GapItem(skill="React", have="Intermediate", need="Advanced", gapLevel="Medium"),
         GapItem(skill="System Design", have="Basic", need="Advanced", gapLevel="High"),
@@ -884,7 +895,8 @@ async def generate_session_payload(
             ],
         ),
     ]
-    return gap_analysis, readiness, question_bank, roadmap
+    is_estimated = not resume_text.strip() and not jd_text.strip()
+    return gap_analysis, readiness, question_bank, roadmap, is_estimated
 
 
 def _significant_tokens(text: str) -> set[str]:
@@ -1297,20 +1309,9 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthRespons
 
 @app.get("/api/auth/me", response_model=User)
 def me(
-    authorization: str | None = Header(default=None), db: Session = Depends(get_db)
+    current_user: UserTable = Depends(require_current_user)
 ) -> User:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authorization token",
-        )
-    payload = decode_token(authorization.removeprefix("Bearer ").strip())
-    user = db.get(UserTable, payload.get("sub"))
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-        )
-    return user_from_table(user)
+    return user_from_table(current_user)
 
 
 @app.get("/api/users/{user_id}/profile", response_model=CareerProfile | None)
@@ -1327,7 +1328,7 @@ def get_profile(
 def save_profile(
     user_id: str,
     profile: CareerProfile,
-    _: UserTable = Depends(require_current_user),
+    user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> CareerProfile:
     if profile.userId != user_id:
@@ -1336,6 +1337,7 @@ def save_profile(
         )
 
     payload = profile.model_dump(by_alias=True)
+    payload["email"] = user.email
     existing = db.get(ProfileTable, user_id)
     if existing:
         existing.full_name = payload["fullName"]
@@ -1427,7 +1429,7 @@ async def create_session(
     db: Session = Depends(get_db),
 ) -> InterviewSession:
     client = getattr(request.app.state, "httpx_client", None)
-    gap_analysis, readiness, question_bank, roadmap = await generate_session_payload(
+    gap_analysis, readiness, question_bank, roadmap, is_estimated = await generate_session_payload(
         payload.jobTitle,
         payload.company,
         payload.jdText,
@@ -1437,7 +1439,8 @@ async def create_session(
 
     # --- ML: extract skills from resume ---
     skills = extract_skills(payload.resumeText)
-    ml_score = compute_match_score(payload.resumeText, payload.jdText)
+    scores = compute_match_score(payload.resumeText, payload.jdText)
+    ml_score = scores["overallScore"]
 
     row = InterviewSessionTable(
         id=str(uuid4()),
@@ -1446,6 +1449,7 @@ async def create_session(
         company=payload.company,
         jd_text=payload.jdText,
         resume_text=payload.resumeText,
+        is_estimated=is_estimated,
         gap_analysis=[item.model_dump() for item in gap_analysis],
         readiness_score=readiness,
         question_bank=[item.model_dump() for item in question_bank],
@@ -1809,6 +1813,9 @@ class MatchScoreRequest(BaseModel):
 
 class MatchScoreResponse(BaseModel):
     score: int
+    overallScore: int
+    semanticScore: int
+    keywordOverlapScore: int
     label: str
 
 
@@ -1832,7 +1839,8 @@ def ml_extract_skills(payload: ExtractSkillsRequest) -> ExtractSkillsResponse:
     dependencies=[Depends(require_current_user), Depends(validate_payload_size)],
 )
 def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
-    score = compute_match_score(payload.resumeText, payload.jdText)
+    scores = compute_match_score(payload.resumeText, payload.jdText)
+    score = scores["overallScore"]
     label = (
         "Strong match"
         if score >= 70
@@ -1840,7 +1848,13 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
         if score >= 50
         else "Weak match"
     )
-    return MatchScoreResponse(score=score, label=label)
+    return MatchScoreResponse(
+        score=score,
+        overallScore=scores["overallScore"],
+        semanticScore=scores["semanticScore"],
+        keywordOverlapScore=scores["keywordOverlapScore"],
+        label=label
+    )
 
 
 @app.post(

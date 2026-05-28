@@ -58,6 +58,7 @@ export interface InterviewSession {
   roadmap: RoadmapDay[];
   extractedSkills: string[];
   mlMatchScore: number;
+  isEstimated: boolean;
   createdAt: string;
 }
 

@@ -67,8 +67,8 @@ const SearchableMultiSelect = ({ options, selected, onChange, placeholder }: { o
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
-  const filteredOptions = options.filter(opt => 
-    opt.toLowerCase().includes(query.toLowerCase()) && 
+  const filteredOptions = options.filter(opt =>
+    opt.toLowerCase().includes(query.toLowerCase()) &&
     !selected.some(s => s.toLowerCase() === opt.toLowerCase())
   );
 
@@ -225,24 +225,29 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
         if (dreamCompanies.length === 0)
           return "Add at least one dream company to continue.";
         return null;
-      case 1:
+      case 1: {
         if (!degree.trim())
           return "Please enter your degree.";
         if (!institution.trim())
           return "Please enter your institution.";
         if (!graduationYear.trim())
           return "Please enter your graduation year.";
+        const year = parseInt(graduationYear, 10);
+        if (isNaN(year) || year < 1950 || year > 2030)
+          return "Please enter a valid graduation year between 1950 and 2030.";
+
         return null;
+      }
       case 2: {
         let filledCount = 0;
         const currentYear = new Date().getFullYear();
-        
+
         for (const entry of workHistory) {
           const isFilled = entry.jobTitle.trim() || entry.company.trim() || entry.from.trim() || entry.to.trim();
           if (!isFilled) continue;
-          
+
           filledCount++;
-          
+
           if (!entry.jobTitle.trim() || !entry.company.trim()) {
             return "Please provide both job title and company for all work entries.";
           }
@@ -250,7 +255,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
           if (entry.from.trim()) {
             const startYearMatch = entry.from.match(/\b(19|20)\d{2}\b/);
             if (!startYearMatch) return "Please include a valid year (e.g., 2020) in the 'From' field.";
-            
+
             const startYear = parseInt(startYearMatch[0], 10);
             if (startYear > currentYear) return `Start year (${startYear}) cannot be in the future.`;
             if (startYear < 1950) return `Start year (${startYear}) is unrealistic.`;
@@ -258,11 +263,11 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
             if (entry.to.trim()) {
               const isPresent = entry.to.toLowerCase() === "present" || entry.to.toLowerCase() === "current";
               const endYearMatch = entry.to.match(/\b(19|20)\d{2}\b/);
-              
+
               if (!endYearMatch && !isPresent) return "Please include a valid year or 'Present' in the 'To' field.";
-              
+
               const endYear = endYearMatch ? parseInt(endYearMatch[0], 10) : currentYear;
-              
+
               if (!isPresent && endYear > currentYear) return `End year (${endYear}) cannot be in the future.`;
               if (endYear < startYear) return `End year (${endYear}) must be greater than or equal to start year (${startYear}).`;
             }
@@ -272,7 +277,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
         if (filledCount === 0) {
           return "Add at least one work entry with job title and company.";
         }
-        
+
         return null;
       }
       case 3:
@@ -341,8 +346,8 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
     }
   };
 
-  const filteredTechOptions = PREDEFINED_TECH_SKILLS.filter(opt => 
-    opt.toLowerCase().includes(techQuery.toLowerCase()) && 
+  const filteredTechOptions = PREDEFINED_TECH_SKILLS.filter(opt =>
+    opt.toLowerCase().includes(techQuery.toLowerCase()) &&
     !technicalSkills.some(s => s.name.toLowerCase() === opt.toLowerCase())
   );
 
@@ -407,7 +412,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                   </div>
                   <div>
                     <Label>Graduation Year</Label>
-                    <Input value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} className="mt-1 bg-secondary/50" />
+                    <Input type="number" min="1950" max="2030" value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} className="mt-1 bg-secondary/50" />
                   </div>
                   <div>
                     <Label>Relevant Coursework</Label>
