@@ -122,7 +122,9 @@ class UserTable(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    mentor_history_enabled: Mapped[bool] = mapped_column(Boolean, server_default="true", default=True)
+    mentor_history_enabled: Mapped[bool] = mapped_column(
+        Boolean, server_default="true", default=True
+    )
 
 
 class ProfileTable(Base):
@@ -1952,7 +1954,7 @@ async def mentor_chat(
     history = payload.history or []
     conv_id = payload.conversation_id
     now = utc_now()
-    
+
     is_persistent = current_user.mentor_history_enabled
 
     if is_persistent:
@@ -1972,7 +1974,7 @@ async def mentor_chat(
             )
             if not conv:
                 raise HTTPException(status_code=404, detail="Conversation not found")
-    
+
             # Load history
             stmt = (
                 select(MentorChatMessageTable)
@@ -2027,14 +2029,16 @@ async def mentor_chat(
                     created_at=utc_now(),
                 )
             )
-    
+
             # Update conversation updated_at
             conv_to_update = db.scalar(
-                select(MentorConversationTable).where(MentorConversationTable.id == conv_id)
+                select(MentorConversationTable).where(
+                    MentorConversationTable.id == conv_id
+                )
             )
             if conv_to_update:
                 conv_to_update.updated_at = utc_now()
-    
+
             db.commit()
 
         return MentorChatResponse(reply=reply_text, conversation_id=conv_id)
@@ -2052,22 +2056,32 @@ class ConversationResponse(BaseModel):
     title: str
     updated_at: str
 
+
 class MentorSettingsResponse(BaseModel):
     mentor_history_enabled: bool
+
 
 class MentorSettingsUpdateRequest(BaseModel):
     mentor_history_enabled: bool
 
-@app.get("/api/users/{user_id}/mentor-chat/settings", response_model=MentorSettingsResponse)
+
+@app.get(
+    "/api/users/{user_id}/mentor-chat/settings", response_model=MentorSettingsResponse
+)
 def get_mentor_settings(
     user_id: str,
     current_user: UserTable = Depends(require_current_user),
 ) -> MentorSettingsResponse:
     if current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
-    return MentorSettingsResponse(mentor_history_enabled=current_user.mentor_history_enabled)
+    return MentorSettingsResponse(
+        mentor_history_enabled=current_user.mentor_history_enabled
+    )
 
-@app.patch("/api/users/{user_id}/mentor-chat/settings", response_model=MentorSettingsResponse)
+
+@app.patch(
+    "/api/users/{user_id}/mentor-chat/settings", response_model=MentorSettingsResponse
+)
 def update_mentor_settings(
     user_id: str,
     payload: MentorSettingsUpdateRequest,
@@ -2076,10 +2090,13 @@ def update_mentor_settings(
 ) -> MentorSettingsResponse:
     if current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
-    
+
     current_user.mentor_history_enabled = payload.mentor_history_enabled
     db.commit()
-    return MentorSettingsResponse(mentor_history_enabled=current_user.mentor_history_enabled)
+    return MentorSettingsResponse(
+        mentor_history_enabled=current_user.mentor_history_enabled
+    )
+
 
 @app.get(
     "/api/users/{user_id}/mentor-chat/conversations",
