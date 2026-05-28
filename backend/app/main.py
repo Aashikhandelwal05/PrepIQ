@@ -10,15 +10,14 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
-# pyrefly: ignore [missing-import]
-from dotenv import load_dotenv
-from pathlib import Path
-
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 import httpx
+
+# pyrefly: ignore [missing-import]
+from dotenv import load_dotenv
 from fastapi import (
     Depends,
     FastAPI,
@@ -35,6 +34,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
+    ForeignKey,
     Integer,
     String,
     Text,
@@ -42,11 +42,12 @@ from sqlalchemy import (
     delete,
     func,
     select,
-    ForeignKey,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from .ml import analyze_confidence, compute_match_score, extract_skills
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 logger = logging.getLogger(__name__)
 
@@ -206,18 +207,28 @@ class MentorConversationTable(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(36), index=True)
     title: Mapped[str] = mapped_column(String(255))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
 
 
 class MentorChatMessageTable(Base):
     __tablename__ = "mentor_chat_messages"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("mentor_conversations.id", ondelete="CASCADE"), index=True)
-    role: Mapped[str] = mapped_column(String(20)) # "user" or "assistant"
+    conversation_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("mentor_conversations.id", ondelete="CASCADE"),
+        index=True,
+    )
+    role: Mapped[str] = mapped_column(String(20))  # "user" or "assistant"
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
 
 
 def get_db() -> Session:
@@ -556,7 +567,10 @@ def stable_number(seed: str, minimum: int, maximum: int) -> int:
 
 
 async def call_openrouter_json(
-    system_prompt: str, user_prompt: str, client: httpx.AsyncClient | None = None, history: list[dict[str, str]] | None = None
+    system_prompt: str,
+    user_prompt: str,
+    client: httpx.AsyncClient | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     if GEMINI_API_KEY:
         url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -568,7 +582,9 @@ async def call_openrouter_json(
         provider_name = "Gemini"
     else:
         if not OPENROUTER_API_KEY:
-            raise OpenRouterError("No API key configured (neither Gemini nor OpenRouter)")
+            raise OpenRouterError(
+                "No API key configured (neither Gemini nor OpenRouter)"
+            )
         url = "https://openrouter.ai/api/v1/chat/completions"
         model = OPENROUTER_MODEL
         headers = {
@@ -622,8 +638,7 @@ async def call_openrouter_json(
                         backoff = 2**attempt
 
                     logger.warning(
-                        "%s returned status %d. Retrying in %ds "
-                        "(attempt %d/%d)...",
+                        "%s returned status %d. Retrying in %ds (attempt %d/%d)...",
                         provider_name,
                         response.status_code,
                         backoff,
@@ -649,7 +664,9 @@ async def call_openrouter_json(
             raise OpenRouterError(f"{provider_name} connection failed: {exc}") from exc
 
     if not body:
-        raise OpenRouterError(f"{provider_name} request failed to return a response body")
+        raise OpenRouterError(
+            f"{provider_name} request failed to return a response body"
+        )
 
     try:
         raw_content = body["choices"][0]["message"]["content"]
@@ -665,8 +682,9 @@ async def call_openrouter_json(
             content = content.strip()
         return json.loads(content)
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-        raise OpenRouterError(f"{provider_name} returned an invalid response format") from exc
-
+        raise OpenRouterError(
+            f"{provider_name} returned an invalid response format"
+        ) from exc
 
 
 async def generate_session_payload(
@@ -725,31 +743,43 @@ async def generate_session_payload(
             "skill": ["skill", "name"],
             "have": ["have", "current"],
             "need": ["need", "required"],
-            "gapLevel": ["gaplevel", "level", "gap"]
+            "gapLevel": ["gaplevel", "level", "gap"],
         }
         q_mapping = {
             "question": ["question", "text"],
             "type": ["type", "category"],
             "difficulty": ["difficulty", "level"],
-            "tip": ["tip", "hint"]
+            "tip": ["tip", "hint"],
         }
         roadmap_mapping = {
             "day": ["day", "number"],
             "focusArea": ["focusarea", "area", "focus"],
-            "tasks": ["tasks", "todo"]
+            "tasks": ["tasks", "todo"],
         }
 
         raw_gap = norm_res.get("gapanalysis", [])
-        gap_analysis = [GapItem(**norm_dict(item, gap_mapping)) for item in raw_gap if isinstance(item, dict)]
+        gap_analysis = [
+            GapItem(**norm_dict(item, gap_mapping))
+            for item in raw_gap
+            if isinstance(item, dict)
+        ]
 
         readiness_val = norm_res.get("readinessscore", norm_res.get("readiness", 50))
         readiness = max(0, min(100, int(readiness_val)))
 
         raw_questions = norm_res.get("questionbank", [])
-        question_bank = [QuestionItem(**norm_dict(item, q_mapping)) for item in raw_questions if isinstance(item, dict)]
+        question_bank = [
+            QuestionItem(**norm_dict(item, q_mapping))
+            for item in raw_questions
+            if isinstance(item, dict)
+        ]
 
         raw_roadmap = norm_res.get("roadmap", [])
-        roadmap = [RoadmapDay(**norm_dict(item, roadmap_mapping)) for item in raw_roadmap if isinstance(item, dict)]
+        roadmap = [
+            RoadmapDay(**norm_dict(item, roadmap_mapping))
+            for item in raw_roadmap
+            if isinstance(item, dict)
+        ]
 
         if len(roadmap) >= 1 and len(question_bank) >= 1 and len(gap_analysis) >= 1:
             return gap_analysis, readiness, question_bank, roadmap
@@ -859,12 +889,59 @@ async def generate_session_payload(
 
 def _significant_tokens(text: str) -> set[str]:
     stopwords = {
-        "the", "and", "a", "an", "of", "to", "is", "are", "in", "for", "on",
-        "with", "that", "this", "it", "as", "at", "by", "from", "be", "or",
-        "not", "have", "has", "was", "were", "will", "can", "i", "you", "your",
-        "we", "our", "they", "their", "what", "which", "when", "where", "why",
-        "how", "do", "does", "did", "so", "but", "if", "then", "because",
-        "there", "these", "those", "meaning",
+        "the",
+        "and",
+        "a",
+        "an",
+        "of",
+        "to",
+        "is",
+        "are",
+        "in",
+        "for",
+        "on",
+        "with",
+        "that",
+        "this",
+        "it",
+        "as",
+        "at",
+        "by",
+        "from",
+        "be",
+        "or",
+        "not",
+        "have",
+        "has",
+        "was",
+        "were",
+        "will",
+        "can",
+        "i",
+        "you",
+        "your",
+        "we",
+        "our",
+        "they",
+        "their",
+        "what",
+        "which",
+        "when",
+        "where",
+        "why",
+        "how",
+        "do",
+        "does",
+        "did",
+        "so",
+        "but",
+        "if",
+        "then",
+        "because",
+        "there",
+        "these",
+        "those",
+        "meaning",
     }
     return {
         token.lower()
@@ -874,11 +951,33 @@ def _significant_tokens(text: str) -> set[str]:
 
 
 FALLBACK_TECHNICAL_TERMS = {
-    "model", "data", "training", "test", "accuracy", "performance", "generalize",
-    "generalization", "variance", "bias", "overfit", "overfitting", "unseen",
-    "feature", "dataset", "classification", "regression", "optimization", "neural",
-    "network", "algorithm", "prediction", "validation", "loss", "error",
-    "regularization", "parameter",
+    "model",
+    "data",
+    "training",
+    "test",
+    "accuracy",
+    "performance",
+    "generalize",
+    "generalization",
+    "variance",
+    "bias",
+    "overfit",
+    "overfitting",
+    "unseen",
+    "feature",
+    "dataset",
+    "classification",
+    "regression",
+    "optimization",
+    "neural",
+    "network",
+    "algorithm",
+    "prediction",
+    "validation",
+    "loss",
+    "error",
+    "regularization",
+    "parameter",
 }
 
 
@@ -916,7 +1015,11 @@ async def evaluate_mock_attempt(
     answer_text = answer.strip()
     answer_words = re.findall(r"\w+", answer_text)
     # Pre-validation: Catch extremely short or purely gibberish answers early
-    if len(answer_words) < 5 or len(answer_text) < 20 or max((len(w) for w in answer_words), default=0) > 25:
+    if (
+        len(answer_words) < 5
+        or len(answer_text) < 20
+        or max((len(w) for w in answer_words), default=0) > 25
+    ):
         return 1, MockFeedback(
             strengths=["Attempted to respond"],
             missing=[
@@ -961,13 +1064,26 @@ async def evaluate_mock_attempt(
         score = max(1, min(10, int(score_val)))
 
         strengths = norm_res.get("strengths", ["Attempted to answer"])
-        missing = norm_res.get("missing", norm_res.get("areas to improve", norm_res.get("weaknesses", [])))
-        model_answer = norm_res.get("modelanswer", norm_res.get("model_answer", "Practice structured responses using STAR method."))
-        verdict = norm_res.get("onelineverdict", norm_res.get("verdict", "Basic response submitted."))
+        missing = norm_res.get(
+            "missing", norm_res.get("areas to improve", norm_res.get("weaknesses", []))
+        )
+        model_answer = norm_res.get(
+            "modelanswer",
+            norm_res.get(
+                "model_answer", "Practice structured responses using STAR method."
+            ),
+        )
+        verdict = norm_res.get(
+            "onelineverdict", norm_res.get("verdict", "Basic response submitted.")
+        )
 
         feedback = MockFeedback(
-            strengths=[str(item) for item in strengths] if isinstance(strengths, list) else [str(strengths)],
-            missing=[str(item) for item in missing] if isinstance(missing, list) else [str(missing)],
+            strengths=[str(item) for item in strengths]
+            if isinstance(strengths, list)
+            else [str(strengths)],
+            missing=[str(item) for item in missing]
+            if isinstance(missing, list)
+            else [str(missing)],
             modelAnswer=str(model_answer),
             oneLineVerdict=str(verdict),
             confidenceAnalysis=confidence,
@@ -1572,6 +1688,7 @@ def delete_job(
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
 # ---------------------------------------------------------------------------
 # Question Generation endpoint (no DB required)
 # ---------------------------------------------------------------------------
@@ -1596,7 +1713,10 @@ class GenerateQuestionResponse(BaseModel):
     question: str
 
 
-@app.post("/api/users/{user_id}/mock/generate-question", response_model=GenerateQuestionResponse)
+@app.post(
+    "/api/users/{user_id}/mock/generate-question",
+    response_model=GenerateQuestionResponse,
+)
 async def generate_mock_question(
     user_id: str,
     payload: GenerateQuestionRequest,
@@ -1737,6 +1857,7 @@ def ml_analyze_confidence(payload: ConfidenceRequest) -> ConfidenceAnalysis:
 # Mentor Chat Endpoint
 # ---------------------------------------------------------------------------
 
+
 class MentorChatRequest(BaseModel):
     conversation_id: str | None = None
     message: str
@@ -1832,7 +1953,7 @@ async def mentor_chat(
         )
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
-        
+
         # Load history
         stmt = (
             select(MentorChatMessageTable)
@@ -1851,44 +1972,67 @@ async def mentor_chat(
             client=client,
             history=history,
         )
-        
+
         # Standardize response keys to handle case variations
         if isinstance(response, list) and len(response) > 0:
             response = response[0]
         if not isinstance(response, dict):
             response = {}
         norm_res = {k.lower(): v for k, v in response.items()}
-        
+
         reply_text = str(norm_res.get("reply", "")).strip()
         if not reply_text:
             raise OpenRouterError("Empty reply returned")
-            
+
         # Save messages to DB
-        db.add(MentorChatMessageTable(id=str(uuid4()), conversation_id=conv_id, role="user", content=payload.message, created_at=now))
-        db.add(MentorChatMessageTable(id=str(uuid4()), conversation_id=conv_id, role="assistant", content=reply_text, created_at=utc_now()))
-        
+        db.add(
+            MentorChatMessageTable(
+                id=str(uuid4()),
+                conversation_id=conv_id,
+                role="user",
+                content=payload.message,
+                created_at=now,
+            )
+        )
+        db.add(
+            MentorChatMessageTable(
+                id=str(uuid4()),
+                conversation_id=conv_id,
+                role="assistant",
+                content=reply_text,
+                created_at=utc_now(),
+            )
+        )
+
         # Update conversation updated_at
-        conv_to_update = db.scalar(select(MentorConversationTable).where(MentorConversationTable.id == conv_id))
+        conv_to_update = db.scalar(
+            select(MentorConversationTable).where(MentorConversationTable.id == conv_id)
+        )
         if conv_to_update:
             conv_to_update.updated_at = utc_now()
-            
+
         db.commit()
-            
+
         return MentorChatResponse(reply=reply_text, conversation_id=conv_id)
 
     except (OpenRouterError, KeyError, TypeError, ValueError) as exc:
         logger.warning("Mentor chat openrouter error: %s", exc)
         return MentorChatResponse(
             reply="I'm here to help you with your career goals, but I'm currently experiencing technical difficulties. Let's discuss your skills and readiness when I'm back online!",
-            conversation_id=conv_id or ""
+            conversation_id=conv_id or "",
         )
+
 
 class ConversationResponse(BaseModel):
     id: str
     title: str
     updated_at: str
 
-@app.get("/api/users/{user_id}/mentor-chat/conversations", response_model=list[ConversationResponse])
+
+@app.get(
+    "/api/users/{user_id}/mentor-chat/conversations",
+    response_model=list[ConversationResponse],
+)
 def get_conversations(
     user_id: str,
     _: UserTable = Depends(require_current_user),
@@ -1901,9 +2045,12 @@ def get_conversations(
     )
     convs = db.scalars(stmt).all()
     return [
-        ConversationResponse(id=c.id, title=c.title, updated_at=c.updated_at.isoformat())
+        ConversationResponse(
+            id=c.id, title=c.title, updated_at=c.updated_at.isoformat()
+        )
         for c in convs
     ]
+
 
 class ChatMessageResponse(BaseModel):
     id: str
@@ -1911,7 +2058,11 @@ class ChatMessageResponse(BaseModel):
     content: str
     created_at: str
 
-@app.get("/api/users/{user_id}/mentor-chat/conversations/{conversation_id}", response_model=list[ChatMessageResponse])
+
+@app.get(
+    "/api/users/{user_id}/mentor-chat/conversations/{conversation_id}",
+    response_model=list[ChatMessageResponse],
+)
 def get_conversation_history(
     user_id: str,
     conversation_id: str,
@@ -1926,7 +2077,7 @@ def get_conversation_history(
     )
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-        
+
     stmt = (
         select(MentorChatMessageTable)
         .where(MentorChatMessageTable.conversation_id == conversation_id)
@@ -1934,11 +2085,16 @@ def get_conversation_history(
     )
     msgs = db.scalars(stmt).all()
     return [
-        ChatMessageResponse(id=m.id, role=m.role, content=m.content, created_at=m.created_at.isoformat())
+        ChatMessageResponse(
+            id=m.id, role=m.role, content=m.content, created_at=m.created_at.isoformat()
+        )
         for m in msgs
     ]
 
-@app.delete("/api/users/{user_id}/mentor-chat/conversations/{conversation_id}", status_code=204)
+
+@app.delete(
+    "/api/users/{user_id}/mentor-chat/conversations/{conversation_id}", status_code=204
+)
 def delete_conversation(
     user_id: str,
     conversation_id: str,
@@ -1953,6 +2109,6 @@ def delete_conversation(
     )
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-        
-    db.delete(conv) # Cascades to messages due to FK
+
+    db.delete(conv)  # Cascades to messages due to FK
     db.commit()
