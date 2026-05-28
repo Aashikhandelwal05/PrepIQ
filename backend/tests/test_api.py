@@ -134,8 +134,8 @@ class PrepIQApiTestCase(unittest.TestCase):
             "/api/ml/match-score",
             headers=headers,
             json={
-                "resumeText": "Python developer with FastAPI, SQL, and machine learning experience.",
-                "jdText": "Looking for a Python engineer with FastAPI and SQL skills.",
+                "resumeText": "Python developer with FastAPI, SQL, and ML engineer experience.",
+                "jdText": "Looking for a Python engineer with FastAPI, SQL, and machine learning skills.",
             },
         )
 
@@ -147,6 +147,12 @@ class PrepIQApiTestCase(unittest.TestCase):
         self.assertIn(
             payload["label"], {"Strong match", "Moderate match", "Weak match"}
         )
+        self.assertIn("semanticScore", payload)
+        self.assertIn("keywordOverlapScore", payload)
+        self.assertIn("overallScore", payload)
+
+        # Acceptance criteria: "ML engineer" resume matched to "machine learning" JD scores > 70
+        self.assertGreater(payload["score"], 70)
 
     def test_analyze_confidence_endpoint_returns_analysis_shape(self) -> None:
         _, headers = self.create_account()
