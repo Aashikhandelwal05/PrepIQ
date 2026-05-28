@@ -122,6 +122,7 @@ class UserTable(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    mentor_history_enabled: Mapped[bool] = mapped_column(Boolean, server_default="true", default=True)
 
 
 class ProfileTable(Base):
@@ -1864,6 +1865,7 @@ class MentorChatRequest(BaseModel):
     skills: list[str]
     readiness_score: float
     profile: dict[str, Any]
+    history: list[dict[str, str]] | None = None
 
 
 class MentorChatResponse(BaseModel):
@@ -1876,7 +1878,7 @@ async def mentor_chat(
     user_id: str,
     payload: MentorChatRequest,
     request: Request,
-    _: UserTable = Depends(require_current_user),
+    current_user: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
 ) -> MentorChatResponse:
     client = getattr(request.app.state, "httpx_client", None)
@@ -1933,37 +1935,44 @@ async def mentor_chat(
         "Please provide your reply following the strict rules."
     )
 
-    history = []
+    history = payload.history or []
     conv_id = payload.conversation_id
     now = utc_now()
+    
+    is_persistent = current_user.mentor_history_enabled
 
-    if not conv_id:
-        conv_id = str(uuid4())
-        title = payload.message[:30] + ("..." if len(payload.message) > 30 else "")
-        new_conv = MentorConversationTable(
-            id=conv_id, user_id=user_id, title=title, created_at=now, updated_at=now
-        )
-        db.add(new_conv)
-    else:
-        conv = db.scalar(
-            select(MentorConversationTable).where(
-                MentorConversationTable.id == conv_id,
-                MentorConversationTable.user_id == user_id,
+    if is_persistent:
+        if not conv_id:
+            conv_id = str(uuid4())
+            title = payload.message[:30] + ("..." if len(payload.message) > 30 else "")
+            new_conv = MentorConversationTable(
+                id=conv_id, user_id=user_id, title=title, created_at=now, updated_at=now
             )
-        )
-        if not conv:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-
-        # Load history
-        stmt = (
-            select(MentorChatMessageTable)
-            .where(MentorChatMessageTable.conversation_id == conv_id)
-            .order_by(MentorChatMessageTable.created_at.desc())
-            .limit(15)
-        )
-        history_records = db.scalars(stmt).all()
-        for r in reversed(history_records):
-            history.append({"role": r.role, "content": r.content})
+            db.add(new_conv)
+        else:
+            conv = db.scalar(
+                select(MentorConversationTable).where(
+                    MentorConversationTable.id == conv_id,
+                    MentorConversationTable.user_id == user_id,
+                )
+            )
+            if not conv:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+    
+            # Load history
+            stmt = (
+                select(MentorChatMessageTable)
+                .where(MentorChatMessageTable.conversation_id == conv_id)
+                .order_by(MentorChatMessageTable.created_at.desc())
+                .limit(15)
+            )
+            history_records = db.scalars(stmt).all()
+            db_history = []
+            for r in reversed(history_records):
+                db_history.append({"role": r.role, "content": r.content})
+            history = db_history
+    else:
+        conv_id = ""
 
     try:
         response = await call_openrouter_json(
@@ -1984,34 +1993,35 @@ async def mentor_chat(
         if not reply_text:
             raise OpenRouterError("Empty reply returned")
 
-        # Save messages to DB
-        db.add(
-            MentorChatMessageTable(
-                id=str(uuid4()),
-                conversation_id=conv_id,
-                role="user",
-                content=payload.message,
-                created_at=now,
+        if is_persistent:
+            # Save messages to DB
+            db.add(
+                MentorChatMessageTable(
+                    id=str(uuid4()),
+                    conversation_id=conv_id,
+                    role="user",
+                    content=payload.message,
+                    created_at=now,
+                )
             )
-        )
-        db.add(
-            MentorChatMessageTable(
-                id=str(uuid4()),
-                conversation_id=conv_id,
-                role="assistant",
-                content=reply_text,
-                created_at=utc_now(),
+            db.add(
+                MentorChatMessageTable(
+                    id=str(uuid4()),
+                    conversation_id=conv_id,
+                    role="assistant",
+                    content=reply_text,
+                    created_at=utc_now(),
+                )
             )
-        )
-
-        # Update conversation updated_at
-        conv_to_update = db.scalar(
-            select(MentorConversationTable).where(MentorConversationTable.id == conv_id)
-        )
-        if conv_to_update:
-            conv_to_update.updated_at = utc_now()
-
-        db.commit()
+    
+            # Update conversation updated_at
+            conv_to_update = db.scalar(
+                select(MentorConversationTable).where(MentorConversationTable.id == conv_id)
+            )
+            if conv_to_update:
+                conv_to_update.updated_at = utc_now()
+    
+            db.commit()
 
         return MentorChatResponse(reply=reply_text, conversation_id=conv_id)
 
@@ -2028,6 +2038,34 @@ class ConversationResponse(BaseModel):
     title: str
     updated_at: str
 
+class MentorSettingsResponse(BaseModel):
+    mentor_history_enabled: bool
+
+class MentorSettingsUpdateRequest(BaseModel):
+    mentor_history_enabled: bool
+
+@app.get("/api/users/{user_id}/mentor-chat/settings", response_model=MentorSettingsResponse)
+def get_mentor_settings(
+    user_id: str,
+    current_user: UserTable = Depends(require_current_user),
+) -> MentorSettingsResponse:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return MentorSettingsResponse(mentor_history_enabled=current_user.mentor_history_enabled)
+
+@app.patch("/api/users/{user_id}/mentor-chat/settings", response_model=MentorSettingsResponse)
+def update_mentor_settings(
+    user_id: str,
+    payload: MentorSettingsUpdateRequest,
+    current_user: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> MentorSettingsResponse:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    current_user.mentor_history_enabled = payload.mentor_history_enabled
+    db.commit()
+    return MentorSettingsResponse(mentor_history_enabled=current_user.mentor_history_enabled)
 
 @app.get(
     "/api/users/{user_id}/mentor-chat/conversations",

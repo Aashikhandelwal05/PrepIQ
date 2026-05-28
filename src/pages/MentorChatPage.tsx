@@ -1,20 +1,18 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Bot, User as UserIcon, AlertCircle, RefreshCcw, Menu, Plus, MessageSquare, Trash2, X } from "lucide-react";
+import { Send, Bot, User as UserIcon, AlertCircle, RefreshCcw, Menu, Info, Sparkles, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { User, CareerProfile, InterviewSession, MockAttempt, JobApplication } from "@/lib/store";
 import { apiRequest } from "@/lib/api";
+
+import { CyberBackground } from "@/components/mentor/CyberBackground";
+import { MentorSidebar, Conversation } from "@/components/mentor/MentorSidebar";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-}
-
-interface Conversation {
-  id: string;
-  title: string;
-  updated_at: string;
 }
 
 interface MentorChatPageProps {
@@ -34,7 +32,9 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
+  const [isHistoryEnabled, setIsHistoryEnabled] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -48,11 +48,23 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
   }, [messages, isLoading]);
 
   useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await apiRequest<{ mentor_history_enabled: boolean }>(`/api/users/${user.id}/mentor-chat/settings`);
+        setIsHistoryEnabled(res.mentor_history_enabled);
+      } catch (err) {
+        console.error("Failed to fetch mentor settings", err);
+      }
+    };
+    fetchSettings();
+  }, [user.id]);
+
+  useEffect(() => {
     const fetchConversations = async () => {
       try {
         const data = await apiRequest<Conversation[]>(`/api/users/${user.id}/mentor-chat/conversations`);
         setConversations(data);
-        if (data.length > 0 && !activeConversationId) {
+        if (data.length > 0 && !activeConversationId && isHistoryEnabled) {
           setActiveConversationId(data[0].id);
         }
       } catch (err) {
@@ -77,6 +89,22 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
     };
     fetchHistory();
   }, [activeConversationId, user.id]);
+
+  const toggleHistory = async (checked: boolean) => {
+    setIsHistoryEnabled(checked);
+    if (!checked) {
+      setActiveConversationId(null);
+    }
+    try {
+      await apiRequest(`/api/users/${user.id}/mentor-chat/settings`, {
+        method: "PATCH",
+        body: JSON.stringify({ mentor_history_enabled: checked }),
+      });
+    } catch (err) {
+      console.error("Failed to toggle setting", err);
+      setIsHistoryEnabled(!checked);
+    }
+  };
 
   const handleSend = async (messageText: string = input) => {
     const trimmed = messageText.trim();
@@ -126,15 +154,21 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
         }))
       };
 
+      const payload: any = {
+        conversation_id: activeConversationId || undefined,
+        message: trimmed,
+        skills,
+        readiness_score: readinessScore,
+        profile: enrichedProfile
+      };
+      
+      if (!isHistoryEnabled) {
+        payload.history = messages.map(m => ({ role: m.role, content: m.content }));
+      }
+
       const response = await apiRequest<{ reply: string; conversation_id: string }>(`/api/users/${user.id}/mentor-chat`, {
         method: "POST",
-        body: JSON.stringify({
-          conversation_id: activeConversationId || undefined,
-          message: trimmed,
-          skills,
-          readiness_score: readinessScore,
-          profile: enrichedProfile
-        }),
+        body: JSON.stringify(payload),
       });
 
       const assistantMessage: Message = {
@@ -145,7 +179,7 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
 
       setMessages((prev) => [...prev, assistantMessage]);
       
-      if (!activeConversationId) {
+      if (isHistoryEnabled && !activeConversationId && response.conversation_id) {
         setActiveConversationId(response.conversation_id);
         const updated = await apiRequest<Conversation[]>(`/api/users/${user.id}/mentor-chat/conversations`);
         setConversations(updated);
@@ -165,14 +199,6 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
     }
   };
 
-  const handleRetry = () => {
-    if (messages.length > 0 && messages[messages.length - 1].role === "user") {
-      const lastMessage = messages[messages.length - 1].content;
-      setMessages((prev) => prev.slice(0, -1));
-      handleSend(lastMessage);
-    }
-  };
-
   const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     try {
@@ -187,117 +213,98 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
     }
   };
 
-  const createNewChat = () => {
-    setActiveConversationId(null);
-    setMessages([]);
-    setIsSidebarOpen(false);
-  };
-
   return (
-    <div className="flex h-[calc(100vh-8rem)] rounded-xl border bg-card shadow-sm overflow-hidden animate-slide-up relative">
-      
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="absolute inset-0 bg-background/80 backdrop-blur-sm z-20 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+    <div className="flex h-[calc(100vh-8rem)] rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative group/chat-container">
+      <CyberBackground />
 
-      {/* Sidebar */}
-      <div className={`
-        absolute md:relative z-30
-        w-64 h-full bg-muted/30 border-r border-border flex flex-col
-        transition-transform duration-300 ease-in-out
-        ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-      `}>
-        <div className="p-4 flex items-center justify-between">
-          <Button onClick={createNewChat} className="w-full flex items-center gap-2" variant="outline">
-            <Plus className="w-4 h-4" />
-            New Chat
-          </Button>
-          <Button variant="ghost" size="icon" className="md:hidden ml-2" onClick={() => setIsSidebarOpen(false)}>
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {conversations.length === 0 ? (
-            <div className="text-center p-4 text-xs text-muted-foreground mt-4">
-              No previous conversations
-            </div>
-          ) : (
-            conversations.map(conv => (
-              <div
-                key={conv.id}
-                onClick={() => {
-                  setActiveConversationId(conv.id);
-                  setIsSidebarOpen(false);
-                }}
-                className={`
-                  group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors text-sm
-                  ${activeConversationId === conv.id ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted text-foreground"}
-                `}
-              >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <MessageSquare className="w-4 h-4 shrink-0 opacity-70" />
-                  <span className="truncate">{conv.title}</span>
-                </div>
-                <button
-                  onClick={(e) => handleDeleteConversation(e, conv.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-all shrink-0"
-                  title="Delete Chat"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      <MentorSidebar
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        isMobileMenuOpen={isMobileMenuOpen}
+        isDesktopCollapsed={isDesktopCollapsed}
+        onSelectConversation={setActiveConversationId}
+        onDeleteConversation={handleDeleteConversation}
+        onNewChat={() => {
+          setActiveConversationId(null);
+          setMessages([]);
+          setIsMobileMenuOpen(false);
+        }}
+        onCloseMobileSidebar={() => setIsMobileMenuOpen(false)}
+        onToggleCollapse={() => setIsDesktopCollapsed(prev => !prev)}
+      />
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative z-10">
+        
         {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b bg-muted/10 h-16 shrink-0">
-          <Button variant="ghost" size="icon" className="md:hidden -ml-2 shrink-0" onClick={() => setIsSidebarOpen(true)}>
-            <Menu className="w-5 h-5" />
-          </Button>
-          <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground shadow-glow shrink-0">
-            <Bot className="w-5 h-5" />
+        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-black/40 backdrop-blur-xl h-16 shrink-0 shadow-sm">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <Button variant="ghost" size="icon" className="md:hidden -ml-2 shrink-0 text-white/70 hover:bg-white/10 hover:text-white" onClick={() => setIsMobileMenuOpen(true)}>
+              <Menu className="w-5 h-5" />
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="hidden md:flex -ml-2 shrink-0 text-white/50 hover:text-white hover:bg-white/10 transition-colors" 
+              onClick={() => setIsDesktopCollapsed(prev => !prev)}
+              title={isDesktopCollapsed ? "Open Sidebar" : "Close Sidebar"}
+            >
+              {isDesktopCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+            </Button>
+
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] shrink-0">
+              <Bot className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="font-semibold text-white/90 truncate text-base tracking-wide flex items-center gap-2">
+                AI Mentor
+                {!isHistoryEnabled && <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] uppercase font-bold tracking-wider border border-orange-500/30">Private</span>}
+              </h1>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="font-semibold text-foreground truncate">
-              {activeConversationId 
-                ? conversations.find(c => c.id === activeConversationId)?.title || "AI Mentor"
-                : "New Chat"}
-            </h1>
+          
+          <div className="flex flex-col items-end gap-1 pl-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-white/50 whitespace-nowrap hidden sm:inline">
+                Save History
+              </span>
+              <Switch
+                checked={isHistoryEnabled}
+                onCheckedChange={toggleHistory}
+                className="data-[state=checked]:bg-purple-500"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        {/* Messages Container */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-4 text-muted-foreground">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <Bot className="w-8 h-8 text-primary" />
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-purple-500/20 blur-2xl rounded-full animate-pulse-glow" />
+                <div className="relative w-20 h-20 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center shadow-2xl">
+                  <Bot className="w-10 h-10 text-purple-400" />
+                  <Sparkles className="absolute -top-2 -right-2 w-5 h-5 text-blue-400 animate-pulse" />
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-foreground text-lg">How can I help you today, {user.name}?</p>
-                <p className="text-sm max-w-md mx-auto mt-2">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-white tracking-tight">AI Mentor Ready</h2>
+                <p className="text-sm text-white/50 max-w-md mx-auto">
                   Ask me about interview strategies, resume reviews, salary negotiation, or what skills to focus on next.
                 </p>
               </div>
-              <div className="flex flex-wrap justify-center gap-2 mt-4 max-w-lg">
+              <div className="flex flex-wrap justify-center gap-3 mt-4 max-w-2xl">
                 {[
-                  "How do I answer 'Tell me about yourself'?",
-                  "Can you review my skills for a Frontend role?",
+                  "Review my skills for a Frontend role",
                   "What's a good study plan for system design?",
+                  "How do I answer 'Tell me about yourself'?",
                 ].map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => setInput(suggestion)}
-                    className="px-3 py-1.5 text-xs rounded-full border border-border bg-background hover:bg-muted transition-colors text-foreground"
+                    className="px-4 py-2 text-xs rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-purple-500/30 transition-all text-white/70 hover:text-white shadow-sm"
                   >
                     {suggestion}
                   </button>
@@ -309,30 +316,30 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
               {messages.map((msg) => (
                 <motion.div
                   key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-3 max-w-[85%] ${
+                  initial={{ opacity: 0, y: 15, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  className={`flex gap-4 max-w-[85%] ${
                     msg.role === "user" ? "ml-auto flex-row-reverse" : ""
                   }`}
                 >
                   <div
-                    className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${
+                    className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg ${
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
+                        ? "bg-gradient-to-br from-blue-600 to-purple-600 text-white"
+                        : "bg-black/50 border border-white/10 text-purple-400 backdrop-blur-md"
                     }`}
                   >
                     {msg.role === "user" ? (
                       <UserIcon className="w-4 h-4" />
                     ) : (
-                      <Bot className="w-4 h-4" />
+                      <Bot className="w-5 h-5" />
                     )}
                   </div>
                   <div
-                    className={`rounded-2xl px-4 py-3 text-sm ${
+                    className={`rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-lg backdrop-backdrop-blur-md ${
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-tr-none"
-                        : "bg-muted text-foreground rounded-tl-none whitespace-pre-wrap"
+                        ? "bg-gradient-to-br from-purple-900/40 to-blue-900/40 border border-purple-500/20 text-white rounded-tr-sm"
+                        : "bg-black/40 border border-white/10 text-white/90 rounded-tl-sm whitespace-pre-wrap"
                     }`}
                   >
                     {msg.content}
@@ -346,18 +353,17 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex gap-3 max-w-[85%]"
+              className="flex gap-4 max-w-[85%]"
             >
-              <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
-                <Bot className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center shadow-lg bg-black/50 border border-white/10 text-purple-400 backdrop-blur-md">
+                <Bot className="w-5 h-5" />
               </div>
-              <div className="rounded-2xl px-4 py-3 bg-muted text-muted-foreground rounded-tl-none text-sm flex items-center gap-2">
-                <span className="flex space-x-1">
-                  <span className="animate-bounce">.</span>
-                  <span className="animate-bounce" style={{ animationDelay: "0.2s" }}>.</span>
-                  <span className="animate-bounce" style={{ animationDelay: "0.4s" }}>.</span>
-                </span>
-                AI Mentor is thinking...
+              <div className="rounded-2xl px-5 py-4 bg-black/40 border border-white/10 text-white/60 rounded-tl-sm text-sm flex items-center gap-2 backdrop-blur-md shadow-lg">
+                <div className="flex space-x-1.5 items-center h-2">
+                  <div className="w-1.5 h-1.5 bg-purple-500/70 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <div className="w-1.5 h-1.5 bg-purple-500/70 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <div className="w-1.5 h-1.5 bg-purple-500/70 rounded-full animate-bounce" />
+                </div>
               </div>
             </motion.div>
           )}
@@ -366,12 +372,12 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mx-auto max-w-sm rounded-xl bg-destructive/10 border border-destructive/20 p-3 flex flex-col items-center text-center gap-2"
+              className="mx-auto max-w-sm rounded-xl bg-red-950/40 border border-red-500/20 p-4 flex flex-col items-center text-center gap-3 backdrop-blur-md"
             >
-              <AlertCircle className="w-5 h-5 text-destructive" />
-              <p className="text-xs text-destructive">{error}</p>
-              <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10" onClick={handleRetry}>
-                <RefreshCcw className="w-3 h-3 mr-1" /> Retry
+              <AlertCircle className="w-6 h-6 text-red-400" />
+              <p className="text-xs text-red-200">{error}</p>
+              <Button size="sm" variant="outline" className="h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/20 hover:text-red-300" onClick={handleRetry}>
+                <RefreshCcw className="w-3 h-3 mr-1" /> Retry Connection
               </Button>
             </motion.div>
           )}
@@ -379,32 +385,38 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-background border-t">
-          <div className="relative max-w-4xl mx-auto flex items-end gap-2">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask your AI Mentor anything..."
-              className="w-full min-h-[52px] max-h-32 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 pr-12 scrollbar-thin"
-              rows={1}
-              disabled={isLoading}
-            />
+        <div className="p-4 bg-black/40 backdrop-blur-xl border-t border-white/5 relative z-20">
+          <div className="relative max-w-4xl mx-auto flex items-end gap-3">
+            <div className="relative flex-1 group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-xl blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask your AI Mentor anything..."
+                className="relative w-full min-h-[56px] max-h-32 resize-none rounded-xl border border-white/10 bg-black/60 px-4 py-3.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/40 disabled:cursor-not-allowed disabled:opacity-50 pr-14 scrollbar-thin scrollbar-thumb-white/10 shadow-inner transition-colors"
+                rows={1}
+                disabled={isLoading}
+              />
+            </div>
             <Button
               size="icon"
               onClick={() => handleSend()}
               disabled={!input.trim() || isLoading}
-              className={`absolute right-2 bottom-1.5 h-9 w-9 rounded-lg transition-all ${
-                input.trim() && !isLoading ? "gradient-primary text-primary-foreground shadow-md" : ""
+              className={`absolute right-3 bottom-2 h-10 w-10 rounded-lg transition-all duration-300 ${
+                input.trim() && !isLoading 
+                  ? "bg-gradient-to-br from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)] hover:shadow-[0_0_20px_rgba(168,85,247,0.6)]" 
+                  : "bg-white/5 text-white/30 border border-white/5"
               }`}
             >
               <Send className="w-4 h-4" />
               <span className="sr-only">Send message</span>
             </Button>
           </div>
-          <p className="text-center text-[10px] text-muted-foreground mt-2">
-            AI Mentor can make mistakes. Verify important career advice.
+          <p className="text-center text-[10px] text-white/30 mt-3 flex items-center justify-center gap-1.5">
+            <Info className="w-3 h-3" />
+            AI Mentor responses are generated dynamically and should be verified.
           </p>
         </div>
       </div>
