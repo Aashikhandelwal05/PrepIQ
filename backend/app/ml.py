@@ -36,8 +36,8 @@ def _get_spacy():
                 import spacy
                 _spacy_cache["nlp"] = spacy.load("en_core_web_sm")
                 logger.info("spaCy model loaded successfully")
-            except OSError:
-                logger.warning("spaCy model 'en_core_web_sm' not found. Run: python -m spacy download en_core_web_sm")
+            except (OSError, ImportError):
+                logger.warning("spaCy is not installed or model 'en_core_web_sm' not found. Falling back to keyword matching.")
                 _spacy_cache["nlp"] = None
     return _spacy_cache["nlp"]
 
