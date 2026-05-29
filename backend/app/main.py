@@ -1311,9 +1311,7 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthRespons
 
 
 @app.get("/api/auth/me", response_model=User)
-def me(
-    current_user: UserTable = Depends(require_current_user)
-) -> User:
+def me(current_user: UserTable = Depends(require_current_user)) -> User:
     return user_from_table(current_user)
 
 
@@ -1432,7 +1430,13 @@ async def create_session(
     db: Session = Depends(get_db),
 ) -> InterviewSession:
     client = getattr(request.app.state, "httpx_client", None)
-    gap_analysis, readiness, question_bank, roadmap, is_estimated = await generate_session_payload(
+    (
+        gap_analysis,
+        readiness,
+        question_bank,
+        roadmap,
+        is_estimated,
+    ) = await generate_session_payload(
         payload.jobTitle,
         payload.company,
         payload.jdText,
@@ -1856,7 +1860,7 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
         overallScore=scores["overallScore"],
         semanticScore=scores["semanticScore"],
         keywordOverlapScore=scores["keywordOverlapScore"],
-        label=label
+        label=label,
     )
 
 

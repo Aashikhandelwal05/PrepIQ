@@ -12,3 +12,4 @@ pdfplumber
 python-docx
 python-multipart
 sentence-transformers
+python-dotenv>=1.0.0

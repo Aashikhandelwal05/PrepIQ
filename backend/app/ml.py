@@ -53,13 +53,20 @@ def _get_sentence_transformer():
     if _sentence_transformer_model is None:
         try:
             from sentence_transformers import SentenceTransformer
+
             # Load the lightweight, fast model recommended in the issue
-            _sentence_transformer_model = SentenceTransformer('all-MiniLM-L6-v2')
-            logger.info("sentence-transformers model 'all-MiniLM-L6-v2' loaded successfully")
+            _sentence_transformer_model = SentenceTransformer("all-MiniLM-L6-v2")
+            logger.info(
+                "sentence-transformers model 'all-MiniLM-L6-v2' loaded successfully"
+            )
         except Exception as exc:
             logger.warning("Failed to load sentence-transformers model: %s", exc)
             _sentence_transformer_model = False
-    return _sentence_transformer_model if _sentence_transformer_model is not False else None
+    return (
+        _sentence_transformer_model
+        if _sentence_transformer_model is not False
+        else None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +284,7 @@ def extract_skills(text: str) -> list[str]:
 # Feature 2: Resume ↔ JD Match Score
 # ---------------------------------------------------------------------------
 
+
 def compute_match_score(resume_text: str, jd_text: str) -> dict[str, int]:
     """
     Compute similarity between resume and job description using semantic embeddings
@@ -329,7 +337,7 @@ def compute_match_score(resume_text: str, jd_text: str) -> dict[str, int]:
     return {
         "semanticScore": semantic_score,
         "keywordOverlapScore": keyword_score,
-        "overallScore": overall_score
+        "overallScore": overall_score,
     }
 
 
