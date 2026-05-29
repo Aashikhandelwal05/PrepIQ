@@ -180,6 +180,7 @@ export default function MockInterviewPage({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MockAttempt | null>(null);
   const [showModel, setShowModel] = useState(false);
+  const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<string>("custom");
   const { toast } = useToast();
 
@@ -338,8 +339,8 @@ export default function MockInterviewPage({
     s >= 8
       ? "bg-success/20 text-success border-success/30"
       : s >= 5
-      ? "bg-warning/20 text-warning border-warning/30"
-      : "bg-destructive/20 text-destructive border-destructive/30";
+        ? "bg-warning/20 text-warning border-warning/30"
+        : "bg-destructive/20 text-destructive border-destructive/30";
 
   const selectedSessionQuestions =
     sessions.find((s) => s.id === selectedSession)?.questionBank || [];
@@ -418,8 +419,8 @@ export default function MockInterviewPage({
             {generating
               ? "Generating…"
               : question
-              ? "Regenerate Question"
-              : "Generate Question"}
+                ? "Regenerate Question"
+                : "Generate Question"}
           </Button>
         </div>
         {/* ── END: AI Question Generator ─────────────────────────────── */}
@@ -453,11 +454,10 @@ export default function MockInterviewPage({
                 <button
                   key={i}
                   onClick={() => handleSelectQuestion(q.question)}
-                  className={`w-full text-left p-3 rounded-lg text-sm transition-colors border ${
-                    question === q.question
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border bg-secondary/30 text-muted-foreground hover:border-primary/30"
-                  }`}
+                  className={`w-full text-left p-3 rounded-lg text-sm transition-colors border ${question === q.question
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border bg-secondary/30 text-muted-foreground hover:border-primary/30"
+                    }`}
                 >
                   {q.question}
                 </button>
@@ -514,13 +514,12 @@ export default function MockInterviewPage({
               </div>
 
               <div
-                className={`rounded-xl border p-3 transition-colors ${
-                  isNoLimitTimer
-                    ? "border-border bg-secondary/20"
-                    : isTimerWarning
+                className={`rounded-xl border p-3 transition-colors ${isNoLimitTimer
+                  ? "border-border bg-secondary/20"
+                  : isTimerWarning
                     ? "border-destructive/40 bg-destructive/10"
                     : "border-primary/30 bg-primary/5"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -538,9 +537,8 @@ export default function MockInterviewPage({
                     </Badge>
                   ) : (
                     <span
-                      className={`font-mono text-2xl font-bold tabular-nums ${
-                        isTimerWarning ? "text-destructive" : "text-foreground"
-                      }`}
+                      className={`font-mono text-2xl font-bold tabular-nums ${isTimerWarning ? "text-destructive" : "text-foreground"
+                        }`}
                     >
                       {formatCountdown(remainingSeconds)}
                     </span>
@@ -551,9 +549,8 @@ export default function MockInterviewPage({
                   <>
                     <div className="mt-3 h-2 w-full rounded-full bg-secondary/50 overflow-hidden">
                       <div
-                        className={`h-full transition-all duration-700 ${
-                          isTimerWarning ? "bg-destructive" : "bg-primary"
-                        }`}
+                        className={`h-full transition-all duration-700 ${isTimerWarning ? "bg-destructive" : "bg-primary"
+                          }`}
                         style={{ width: `${timerProgressPercent}%` }}
                       />
                     </div>
@@ -561,10 +558,10 @@ export default function MockInterviewPage({
                       {!hasActiveQuestion
                         ? "Timer starts when a question is set."
                         : loading
-                        ? "Submitting answer..."
-                        : isTimerWarning
-                        ? `Hurry up: less than ${TIMER_WARNING_THRESHOLD_SECONDS} seconds left.`
-                        : "Timer is running."}
+                          ? "Submitting answer..."
+                          : isTimerWarning
+                            ? `Hurry up: less than ${TIMER_WARNING_THRESHOLD_SECONDS} seconds left.`
+                            : "Timer is running."}
                     </p>
                   </>
                 )}
@@ -666,8 +663,8 @@ export default function MockInterviewPage({
                             result.aiFeedback.confidenceAnalysis.confidenceScore >= 70
                               ? "hsl(var(--success))"
                               : result.aiFeedback.confidenceAnalysis.confidenceScore >= 40
-                              ? "hsl(var(--warning))"
-                              : "hsl(var(--destructive))",
+                                ? "hsl(var(--warning))"
+                                : "hsl(var(--destructive))",
                         }}
                       />
                     </div>
@@ -691,13 +688,12 @@ export default function MockInterviewPage({
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground w-24 shrink-0">Sentiment</span>
                     <span
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                        result.aiFeedback.confidenceAnalysis.sentiment === "positive"
-                          ? "bg-success/10 text-success border-success/30"
-                          : result.aiFeedback.confidenceAnalysis.sentiment === "negative"
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${result.aiFeedback.confidenceAnalysis.sentiment === "positive"
+                        ? "bg-success/10 text-success border-success/30"
+                        : result.aiFeedback.confidenceAnalysis.sentiment === "negative"
                           ? "bg-destructive/10 text-destructive border-destructive/30"
                           : "bg-secondary text-muted-foreground border-border"
-                      }`}
+                        }`}
                     >
                       {result.aiFeedback.confidenceAnalysis.sentiment.charAt(0).toUpperCase() +
                         result.aiFeedback.confidenceAnalysis.sentiment.slice(1)}
@@ -715,8 +711,8 @@ export default function MockInterviewPage({
                       {result.aiFeedback.confidenceAnalysis.wordCount < 80
                         ? "Add more detail — aim for 100+ words"
                         : result.aiFeedback.confidenceAnalysis.specificity < 20
-                        ? "Include numbers or metrics for impact"
-                        : "Great response depth! 🎉"}
+                          ? "Include numbers or metrics for impact"
+                          : "Great response depth! 🎉"}
                     </span>
                   </div>
                 </div>
@@ -726,34 +722,144 @@ export default function MockInterviewPage({
         </motion.div>
       )}
 
-      {/* Existing: past attempts — COMPLETELY UNCHANGED */}
+      {/* Past attempts */}
       {attempts.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-3">Past Attempts</h2>
-          <div className="space-y-2">
-            {[...attempts].reverse().slice(0, 10).map((a) => (
-              <div
-                key={a.id}
-                className="rounded-xl bg-card border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground truncate">{a.question}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(a.createdAt).toLocaleDateString()}</p>
+          <div className="space-y-3">
+            {[...attempts].reverse().slice(0, 10).map((a) => {
+              const isExpanded = expandedAttemptId === a.id;
+              return (
+                <div
+                  key={a.id}
+                  className="rounded-xl bg-card border border-border p-4 hover:border-primary/30 transition-colors"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{a.question}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(a.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={scoreColor(a.aiScore)}>{a.aiScore}/10</Badge>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExpandedAttemptId(isExpanded ? null : a.id)}
+                      > {isExpanded ? (
+                        <>
+                          <ChevronUp className="w-4 h-4 mr-1" />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-4 h-4 mr-1" />
+                          Review
+                        </>
+                      )}
+                      </Button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                      <div className="mt-4 space-y-4 border-t border-border pt-4">
+                        <div>
+                          <h4 className="text-sm font-semibold text-foreground mb-2">Your Answer</h4>
+                          <div className="rounded-lg bg-secondary/30 border border-border p-3">
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {a.userAnswer || "No answer recorded."}
+                            </p>
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-semibold text-foreground mb-2">AI Feedback</h4>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <h5 className="text-sm font-semibold text-success flex items-center gap-1">
+                                <CheckCircle className="w-4 h-4" /> Strengths
+                              </h5>
+                              {a.aiFeedback.strengths.map((s, i) => (
+                                <p key={i} className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <CheckCircle className="w-3 h-3 text-success shrink-0" /> {s}
+                                </p>
+                              ))}
+                            </div>
+                            <div className="space-y-2">
+                              <h5 className="text-sm font-semibold text-destructive flex items-center gap-1">
+                                <XCircle className="w-4 h-4" /> Areas to Improve
+                              </h5>
+                              {a.aiFeedback.missing.map((m, i) => (
+                                <p key={i} className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <XCircle className="w-3 h-3 text-destructive shrink-0" /> {m}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="mt-4 rounded-lg bg-secondary/30 border border-border p-3">
+                            <h5 className="text-sm font-semibold text-foreground mb-1">One-line Verdict</h5>
+                            <p className="text-sm text-muted-foreground">
+                              {a.aiFeedback.oneLineVerdict}
+                            </p>
+                          </div>
+                          <div className="mt-4 rounded-lg bg-secondary/30 border border-border p-3">
+                            <h5 className="text-sm font-semibold text-foreground mb-1">Model Answer</h5>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {a.aiFeedback.modelAnswer}
+                            </p>
+                          </div>
+                        </div>
+                        {a.aiFeedback.confidenceAnalysis && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-foreground mb-2">
+                              Confidence Score Breakdown
+                            </h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                              <div className="rounded-lg bg-secondary/30 border border-border p-3">
+                                <p className="text-xs text-muted-foreground">Confidence Score</p>
+                                <p className="text-sm font-semibold text-foreground">
+                                  {a.aiFeedback.confidenceAnalysis.confidenceScore}/100
+                                </p>
+                              </div>
+
+                              <div className="rounded-lg bg-secondary/30 border border-border p-3">
+                                <p className="text-xs text-muted-foreground">Specificity</p>
+                                <p className="text-sm font-semibold text-foreground">
+                                  {a.aiFeedback.confidenceAnalysis.specificity}/100
+                                </p>
+                              </div>
+                              <div className="rounded-lg bg-secondary/30 border border-border p-3">
+                                <p className="text-xs text-muted-foreground">Sentiment</p>
+                                <p className="text-sm font-semibold text-foreground capitalize">
+                                  {a.aiFeedback.confidenceAnalysis.sentiment}
+                                </p>
+                              </div>
+
+                              <div className="rounded-lg bg-secondary/30 border border-border p-3">
+                                <p className="text-xs text-muted-foreground">Word Count</p>
+                                <p className="text-sm font-semibold text-foreground">
+                                  {a.aiFeedback.confidenceAnalysis.wordCount} words
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                 </div>
-                <Badge className={scoreColor(a.aiScore)}>{a.aiScore}/10</Badge>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {attempts.length === 0 && !result && (
-        <div className="bg-card border border-border rounded-2xl p-12 text-center shadow-card">
-          <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-1">No mock interviews yet</h3>
-          <p className="text-sm text-muted-foreground">Answer a question above to get AI feedback</p>
-        </div>
-      )}
-    </div>
+      {
+        attempts.length === 0 && !result && (
+          <div className="bg-card border border-border rounded-2xl p-12 text-center shadow-card">
+            <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-1">No mock interviews yet</h3>
+            <p className="text-sm text-muted-foreground">Answer a question above to get AI feedback</p>
+          </div>
+        )
+      }
+    </div >
   );
 }

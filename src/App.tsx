@@ -7,6 +7,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth, useCareerProfile, useInterviewSessions, useMockAttempts, useJobApplications } from "@/lib/store";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -127,7 +129,43 @@ function AppRoutes() {
         <Route path="/mock-interview" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><MockInterviewPage sessions={sessions} attempts={attempts} onAddAttempt={addAttempt} userId={user?.id || ""} /></ProtectedRoute>} />
         <Route path="/job-tracker" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><JobTrackerPage jobs={jobs} sessions={sessions} onAddJob={addJob} onUpdateJob={updateJob} onDeleteJob={deleteJob} userId={user?.id || ""} /></ProtectedRoute>} />
         <Route path="/progress" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><ProgressPage mocks={attempts} sessions={sessions} /></ProtectedRoute>} />
-        <Route path="/mentor-chat" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><MentorChatPage user={user!} profile={profile} sessions={sessions} mocks={attempts} jobs={jobs} /></ProtectedRoute>} />
+        <Route
+          path="/mentor-chat"
+          element={
+            <ProtectedRoute
+              hydrated={hydrated}
+              user={user}
+              logout={logout}
+              resourceErrorMessage={resourceErrorMessage}
+            >
+              <MentorChatPage
+                user={user!}
+                profile={profile}
+                sessions={sessions}
+                mocks={attempts}
+                jobs={jobs}
+              />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/privacy-policy"
+          element={
+            <AppLayout onLogout={logout}>
+              <Privacy />
+            </AppLayout>
+          }
+        />
+
+        <Route
+          path="/terms"
+          element={
+            <AppLayout onLogout={logout}>
+              <Terms />
+            </AppLayout>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

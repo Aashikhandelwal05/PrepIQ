@@ -317,12 +317,21 @@ export default function InterviewPrepPage({
             <div className="space-y-4">
               <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
                 <h3 className="text-lg font-semibold mb-4">Skill Gap Analysis</h3>
+                {activeSession.isEstimated && (
+                  <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
+                    Analysis is AI-inferred from role/company name only — add your resume and JD for personalized results.
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border">
                         <th className="text-left py-3 text-muted-foreground font-medium">Skill</th>
-                        <th className="text-left py-3 text-muted-foreground font-medium">You Have</th>
+                        <th className="text-left py-3 text-muted-foreground font-medium">
+                          {activeSession.isEstimated && !activeSession.resumeText && !activeSession.jdText
+                            ? "You Have (Estimated)"
+                            : "You Have"}
+                        </th>
                         <th className="text-left py-3 text-muted-foreground font-medium">They Need</th>
                         <th className="text-left py-3 text-muted-foreground font-medium">Gap Level</th>
                       </tr>

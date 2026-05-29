@@ -109,6 +109,26 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
 
       <SidebarFooter className="border-t border-border p-2">
         <SidebarMenu>
+
+          {!collapsed && (
+            <div className="px-3 pb-3 mb-2 border-b border-border/60 flex flex-col gap-2">
+
+              <NavLink
+                to="/privacy-policy"
+                className="text-[12px] text-muted-foreground hover:text-primary underline underline-offset-4 transition-colors"
+              >
+                Privacy Policy
+              </NavLink>
+
+              <NavLink
+                to="/terms"
+                className="text-[12px] text-muted-foreground hover:text-primary underline underline-offset-4 transition-colors"
+              >
+                Terms & Conditions
+              </NavLink>
+
+            </div>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={toggleTheme}
