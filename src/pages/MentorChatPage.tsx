@@ -23,6 +23,13 @@ interface MentorChatPageProps {
   jobs: JobApplication[];
 }
 
+interface MentorChatHistoryMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
 export default function MentorChatPage({ user, profile, sessions, mocks, jobs }: MentorChatPageProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -81,7 +88,7 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
     }
     const fetchHistory = async () => {
       try {
-        const msgs = await apiRequest<any[]>(`/api/users/${user.id}/mentor-chat/conversations/${activeConversationId}`);
+        const msgs = await apiRequest<MentorChatHistoryMessage[]>(`/api/users/${user.id}/mentor-chat/conversations/${activeConversationId}`);
         setMessages(msgs.map(m => ({ id: m.id, role: m.role, content: m.content })));
       } catch (err) {
         console.error("Failed to fetch history", err);
@@ -154,17 +161,14 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
         }))
       };
 
-      const payload: any = {
+      const payload = {
         conversation_id: activeConversationId || undefined,
         message: trimmed,
         skills,
         readiness_score: readinessScore,
-        profile: enrichedProfile
+        profile: enrichedProfile,
+        ...(!isHistoryEnabled ? { history: messages.map(m => ({ role: m.role, content: m.content })) } : {})
       };
-      
-      if (!isHistoryEnabled) {
-        payload.history = messages.map(m => ({ role: m.role, content: m.content }));
-      }
 
       const response = await apiRequest<{ reply: string; conversation_id: string }>(`/api/users/${user.id}/mentor-chat`, {
         method: "POST",
@@ -196,6 +200,17 @@ export default function MentorChatPage({ user, profile, sessions, mocks, jobs }:
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleRetry = () => {
+    if (
+      messages.length > 0 &&
+      messages[messages.length - 1].role === "user"
+    ) {
+      const lastMessage = messages[messages.length - 1].content;
+      setMessages((prev) => prev.slice(0, -1));
+      handleSend(lastMessage);
     }
   };
 
