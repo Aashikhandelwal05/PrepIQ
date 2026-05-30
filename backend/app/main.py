@@ -14,6 +14,13 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import httpx
+from app.sanitize import (
+    ANSWER_MAX_LENGTH,
+    JD_MAX_LENGTH,
+    QUESTION_MAX_LENGTH,
+    RESUME_MAX_LENGTH,
+    sanitize_and_wrap,
+)
 from fastapi import (
     Depends,
     FastAPI,
@@ -24,16 +31,6 @@ from fastapi import (
     Response,
     status,
 )
-
-from app.sanitize import (
-    ANSWER_MAX_LENGTH,
-    JD_MAX_LENGTH,
-    QUESTION_MAX_LENGTH,
-    RESUME_MAX_LENGTH,
-    sanitize_and_wrap,
-)
-from fastapi import HTTPException
-
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import (
@@ -562,7 +559,9 @@ async def call_openrouter_json(
         provider_name = "Gemini"
     else:
         if not OPENROUTER_API_KEY:
-            raise OpenRouterError("No API key configured (neither Gemini nor OpenRouter)")
+            raise OpenRouterError(
+                "No API key configured (neither Gemini nor OpenRouter)"
+            )
         url = "https://openrouter.ai/api/v1/chat/completions"
         model = OPENROUTER_MODEL
         headers = {
@@ -614,8 +613,7 @@ async def call_openrouter_json(
                         backoff = 2**attempt
 
                     logger.warning(
-                        "%s returned status %d. Retrying in %ds "
-                        "(attempt %d/%d)...",
+                        "%s returned status %d. Retrying in %ds (attempt %d/%d)...",
                         provider_name,
                         response.status_code,
                         backoff,
@@ -641,7 +639,9 @@ async def call_openrouter_json(
             raise OpenRouterError(f"{provider_name} connection failed: {exc}") from exc
 
     if not body:
-        raise OpenRouterError(f"{provider_name} request failed to return a response body")
+        raise OpenRouterError(
+            f"{provider_name} request failed to return a response body"
+        )
 
     try:
         raw_content = body["choices"][0]["message"]["content"]
@@ -657,8 +657,9 @@ async def call_openrouter_json(
             content = content.strip()
         return json.loads(content)
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-        raise OpenRouterError(f"{provider_name} returned an invalid response format") from exc
-
+        raise OpenRouterError(
+            f"{provider_name} returned an invalid response format"
+        ) from exc
 
 
 async def generate_session_payload(
@@ -731,31 +732,43 @@ async def generate_session_payload(
             "skill": ["skill", "name"],
             "have": ["have", "current"],
             "need": ["need", "required"],
-            "gapLevel": ["gaplevel", "level", "gap"]
+            "gapLevel": ["gaplevel", "level", "gap"],
         }
         q_mapping = {
             "question": ["question", "text"],
             "type": ["type", "category"],
             "difficulty": ["difficulty", "level"],
-            "tip": ["tip", "hint"]
+            "tip": ["tip", "hint"],
         }
         roadmap_mapping = {
             "day": ["day", "number"],
             "focusArea": ["focusarea", "area", "focus"],
-            "tasks": ["tasks", "todo"]
+            "tasks": ["tasks", "todo"],
         }
 
         raw_gap = norm_res.get("gapanalysis", [])
-        gap_analysis = [GapItem(**norm_dict(item, gap_mapping)) for item in raw_gap if isinstance(item, dict)]
+        gap_analysis = [
+            GapItem(**norm_dict(item, gap_mapping))
+            for item in raw_gap
+            if isinstance(item, dict)
+        ]
 
         readiness_val = norm_res.get("readinessscore", norm_res.get("readiness", 50))
         readiness = max(0, min(100, int(readiness_val)))
 
         raw_questions = norm_res.get("questionbank", [])
-        question_bank = [QuestionItem(**norm_dict(item, q_mapping)) for item in raw_questions if isinstance(item, dict)]
+        question_bank = [
+            QuestionItem(**norm_dict(item, q_mapping))
+            for item in raw_questions
+            if isinstance(item, dict)
+        ]
 
         raw_roadmap = norm_res.get("roadmap", [])
-        roadmap = [RoadmapDay(**norm_dict(item, roadmap_mapping)) for item in raw_roadmap if isinstance(item, dict)]
+        roadmap = [
+            RoadmapDay(**norm_dict(item, roadmap_mapping))
+            for item in raw_roadmap
+            if isinstance(item, dict)
+        ]
 
         if len(roadmap) >= 1 and len(question_bank) >= 1 and len(gap_analysis) >= 1:
             return gap_analysis, readiness, question_bank, roadmap, False
@@ -867,12 +880,59 @@ async def generate_session_payload(
 
 def _significant_tokens(text: str) -> set[str]:
     stopwords = {
-        "the", "and", "a", "an", "of", "to", "is", "are", "in", "for", "on",
-        "with", "that", "this", "it", "as", "at", "by", "from", "be", "or",
-        "not", "have", "has", "was", "were", "will", "can", "i", "you", "your",
-        "we", "our", "they", "their", "what", "which", "when", "where", "why",
-        "how", "do", "does", "did", "so", "but", "if", "then", "because",
-        "there", "these", "those", "meaning",
+        "the",
+        "and",
+        "a",
+        "an",
+        "of",
+        "to",
+        "is",
+        "are",
+        "in",
+        "for",
+        "on",
+        "with",
+        "that",
+        "this",
+        "it",
+        "as",
+        "at",
+        "by",
+        "from",
+        "be",
+        "or",
+        "not",
+        "have",
+        "has",
+        "was",
+        "were",
+        "will",
+        "can",
+        "i",
+        "you",
+        "your",
+        "we",
+        "our",
+        "they",
+        "their",
+        "what",
+        "which",
+        "when",
+        "where",
+        "why",
+        "how",
+        "do",
+        "does",
+        "did",
+        "so",
+        "but",
+        "if",
+        "then",
+        "because",
+        "there",
+        "these",
+        "those",
+        "meaning",
     }
     return {
         token.lower()
@@ -882,11 +942,33 @@ def _significant_tokens(text: str) -> set[str]:
 
 
 FALLBACK_TECHNICAL_TERMS = {
-    "model", "data", "training", "test", "accuracy", "performance", "generalize",
-    "generalization", "variance", "bias", "overfit", "overfitting", "unseen",
-    "feature", "dataset", "classification", "regression", "optimization", "neural",
-    "network", "algorithm", "prediction", "validation", "loss", "error",
-    "regularization", "parameter",
+    "model",
+    "data",
+    "training",
+    "test",
+    "accuracy",
+    "performance",
+    "generalize",
+    "generalization",
+    "variance",
+    "bias",
+    "overfit",
+    "overfitting",
+    "unseen",
+    "feature",
+    "dataset",
+    "classification",
+    "regression",
+    "optimization",
+    "neural",
+    "network",
+    "algorithm",
+    "prediction",
+    "validation",
+    "loss",
+    "error",
+    "regularization",
+    "parameter",
 }
 
 
@@ -938,7 +1020,11 @@ async def evaluate_mock_attempt(
     answer_text = answer.strip()
     answer_words = re.findall(r"\w+", answer_text)
     # Pre-validation: Catch extremely short or purely gibberish answers early
-    if len(answer_words) < 5 or len(answer_text) < 20 or max((len(w) for w in answer_words), default=0) > 25:
+    if (
+        len(answer_words) < 5
+        or len(answer_text) < 20
+        or max((len(w) for w in answer_words), default=0) > 25
+    ):
         return 1, MockFeedback(
             strengths=["Attempted to respond"],
             missing=[
@@ -983,13 +1069,26 @@ async def evaluate_mock_attempt(
         score = max(1, min(10, int(score_val)))
 
         strengths = norm_res.get("strengths", ["Attempted to answer"])
-        missing = norm_res.get("missing", norm_res.get("areas to improve", norm_res.get("weaknesses", [])))
-        model_answer = norm_res.get("modelanswer", norm_res.get("model_answer", "Practice structured responses using STAR method."))
-        verdict = norm_res.get("onelineverdict", norm_res.get("verdict", "Basic response submitted."))
+        missing = norm_res.get(
+            "missing", norm_res.get("areas to improve", norm_res.get("weaknesses", []))
+        )
+        model_answer = norm_res.get(
+            "modelanswer",
+            norm_res.get(
+                "model_answer", "Practice structured responses using STAR method."
+            ),
+        )
+        verdict = norm_res.get(
+            "onelineverdict", norm_res.get("verdict", "Basic response submitted.")
+        )
 
         feedback = MockFeedback(
-            strengths=[str(item) for item in strengths] if isinstance(strengths, list) else [str(strengths)],
-            missing=[str(item) for item in missing] if isinstance(missing, list) else [str(missing)],
+            strengths=[str(item) for item in strengths]
+            if isinstance(strengths, list)
+            else [str(strengths)],
+            missing=[str(item) for item in missing]
+            if isinstance(missing, list)
+            else [str(missing)],
             modelAnswer=str(model_answer),
             oneLineVerdict=str(verdict),
             confidenceAnalysis=confidence,
@@ -1202,9 +1301,7 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthRespons
 
 
 @app.get("/api/auth/me", response_model=User)
-def me(
-    current_user: UserTable = Depends(require_current_user)
-) -> User:
+def me(current_user: UserTable = Depends(require_current_user)) -> User:
     return user_from_table(current_user)
 
 
@@ -1323,7 +1420,13 @@ async def create_session(
     db: Session = Depends(get_db),
 ) -> InterviewSession:
     client = getattr(request.app.state, "httpx_client", None)
-    gap_analysis, readiness, question_bank, roadmap, is_estimated = await generate_session_payload(
+    (
+        gap_analysis,
+        readiness,
+        question_bank,
+        roadmap,
+        is_estimated,
+    ) = await generate_session_payload(
         payload.jobTitle,
         payload.company,
         payload.jdText,
@@ -1586,6 +1689,7 @@ def delete_job(
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
 # ---------------------------------------------------------------------------
 # Question Generation endpoint (no DB required)
 # ---------------------------------------------------------------------------
@@ -1610,7 +1714,10 @@ class GenerateQuestionResponse(BaseModel):
     question: str
 
 
-@app.post("/api/users/{user_id}/mock/generate-question", response_model=GenerateQuestionResponse)
+@app.post(
+    "/api/users/{user_id}/mock/generate-question",
+    response_model=GenerateQuestionResponse,
+)
 async def generate_mock_question(
     user_id: str,
     payload: GenerateQuestionRequest,
@@ -1743,7 +1850,7 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
         overallScore=scores["overallScore"],
         semanticScore=scores["semanticScore"],
         keywordOverlapScore=scores["keywordOverlapScore"],
-        label=label
+        label=label,
     )
 
 

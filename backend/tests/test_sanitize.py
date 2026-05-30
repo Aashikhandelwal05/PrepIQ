@@ -1,4 +1,5 @@
 import pytest
+from app.main import evaluate_mock_attempt, generate_session_payload
 from app.sanitize import (
     ANSWER_MAX_LENGTH,
     JD_MAX_LENGTH,
@@ -7,7 +8,7 @@ from app.sanitize import (
     sanitize_and_wrap,
     sanitize_input,
 )
-from app.main import generate_session_payload, evaluate_mock_attempt
+from fastapi import HTTPException
 
 
 def test_sanitize_removes_prompt_injection_patterns():
