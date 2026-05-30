@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth, useCareerProfile, useInterviewSessions, useMockAttempts, useJobApplications } from "@/lib/store";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import { CommandPalette } from "./components/CommandPalette";
 
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -157,6 +158,7 @@ const App = () => (
         <Toaster />
         <ErrorBoundary>
           <BrowserRouter>
+            <CommandPalette />
             <AppRoutes />
           </BrowserRouter>
         </ErrorBoundary>
