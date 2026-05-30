@@ -25,6 +25,10 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import (
     JSON,
@@ -43,7 +47,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sess
 from .ml import analyze_confidence, compute_match_score, extract_skills
 
 logger = logging.getLogger(__name__)
-
+limiter = Limiter(
+    key_func=get_remote_address,
+    enabled=os.getenv("APP_ENV") != "test",
+)
 
 def load_local_env() -> None:
     env_path = os.getenv("PREPIQ_ENV_FILE", ".env")
@@ -1061,6 +1068,8 @@ def validate_payload_size(request: Request) -> None:
 
 
 app = FastAPI(title="PrepIQ Backend", version="2.0.0")
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1118,10 +1127,15 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
     return AuthResponse(user=user_from_table(user), token=token)
 
 
+@limiter.limit("5/minute")
 @app.post(
     "/api/auth/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
 )
-def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> AuthResponse:
+def signup(
+    request: Request,
+    payload: SignupRequest,
+    db: Session = Depends(get_db),
+) -> AuthResponse:
     if len(payload.password) < 8:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
