@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BookOpen, Loader2, Search, Brain, Cpu, Upload } from "lucide-react";
@@ -26,6 +26,69 @@ interface InterviewPrepPageProps {
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
+const SKILL_RESOURCES: Record<string, { label: string; url: string }[]> = {
+  React: [
+    { label: "React Official Docs", url: "https://react.dev" },
+    {
+      label: "React on MDN",
+      url: "https://developer.mozilla.org/en-US/docs/Learn/Tools_and_testing/Client-side_JavaScript_frameworks/React_getting_started",
+    },
+    { label: "Full Stack Open - React", url: "https://fullstackopen.com/en/part1" },
+  ],
+  TypeScript: [
+    { label: "TypeScript Handbook", url: "https://www.typescriptlang.org/docs/handbook/intro.html" },
+    { label: "TypeScript Deep Dive", url: "https://basarat.gitbook.io/typescript/" },
+    { label: "TS Playground", url: "https://www.typescriptlang.org/play" },
+  ],
+  "System Design": [
+    { label: "System Design Primer", url: "https://github.com/donnemartin/system-design-primer" },
+    { label: "Grokking System Design", url: "https://www.educative.io/courses/grokking-the-system-design-interview" },
+    { label: "ByteByteGo Blog", url: "https://blog.bytebytego.com" },
+  ],
+  SQL: [
+    { label: "SQLZoo", url: "https://sqlzoo.net" },
+    { label: "PostgreSQL Docs", url: "https://www.postgresql.org/docs/" },
+    { label: "Mode SQL Tutorial", url: "https://mode.com/sql-tutorial/" },
+  ],
+  Python: [
+    { label: "Python Official Docs", url: "https://docs.python.org/3/" },
+    { label: "Real Python", url: "https://realpython.com" },
+    { label: "Python Tutorial - W3Schools", url: "https://www.w3schools.com/python/" },
+  ],
+  "Node.js": [
+    { label: "Node.js Official Docs", url: "https://nodejs.org/en/docs" },
+    { label: "Node.js Best Practices", url: "https://github.com/goldbergyoni/nodebestpractices" },
+    { label: "The Odin Project - Node", url: "https://www.theodinproject.com/paths/full-stack-javascript/courses/nodejs" },
+  ],
+  "CI/CD": [
+    { label: "GitHub Actions Docs", url: "https://docs.github.com/en/actions" },
+    { label: "DevOps Roadmap", url: "https://roadmap.sh/devops" },
+    { label: "Continuous Delivery Book", url: "https://continuousdelivery.com" },
+  ],
+  Testing: [
+    { label: "Jest Docs", url: "https://jestjs.io/docs/getting-started" },
+    { label: "Testing Library", url: "https://testing-library.com/docs/" },
+    { label: "The Art of Unit Testing", url: "https://www.manning.com/books/the-art-of-unit-testing-third-edition" },
+  ],
+  Docker: [
+    { label: "Docker Official Docs", url: "https://docs.docker.com/get-started/" },
+    { label: "Play with Docker", url: "https://labs.play-with-docker.com" },
+    { label: "Docker Curriculum", url: "https://docker-curriculum.com" },
+  ],
+  AWS: [
+    { label: "AWS Getting Started", url: "https://aws.amazon.com/getting-started/" },
+    { label: "AWS Skill Builder", url: "https://skillbuilder.aws" },
+    { label: "Cloud Practitioner Essentials", url: "https://aws.amazon.com/training/digital/aws-cloud-practitioner-essentials/" },
+  ],
+};
+
+function getResourcesForSkill(skill: string): { label: string; url: string }[] {
+  const key = Object.keys(SKILL_RESOURCES).find(
+    (k) => skill.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(skill.toLowerCase())
+  );
+  return key ? SKILL_RESOURCES[key] : [];
+}
+
 export default function InterviewPrepPage({
   sessions,
   jobs,
@@ -43,6 +106,7 @@ export default function InterviewPrepPage({
   const [selectedJobId, setSelectedJobId] = useState("");
   const [uploadingJd, setUploadingJd] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
   const jdFileRef = useRef<HTMLInputElement>(null);
   const resumeFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -351,14 +415,54 @@ export default function InterviewPrepPage({
                       </tr>
                     </thead>
                     <tbody>
-                      {activeSession.gapAnalysis.map((g) => (
-                        <tr key={g.skill} className="border-b border-border/50">
-                          <td className="py-3 font-medium text-foreground">{g.skill}</td>
-                          <td className="py-3 text-muted-foreground">{g.have}</td>
-                          <td className="py-3 text-muted-foreground">{g.need}</td>
-                          <td className={`py-3 font-medium ${gapColor[g.gapLevel]}`}>{g.gapLevel}</td>
-                        </tr>
-                      ))}
+                      {activeSession.gapAnalysis.map((g) => {
+                        const resources = getResourcesForSkill(g.skill);
+                        const isExpanded = expandedSkill === g.skill;
+                        return (
+                          <React.Fragment key={g.skill}>
+                            <tr
+                              className={`border-b border-border/50 cursor-pointer transition-colors hover:bg-secondary/30 ${isExpanded ? "bg-secondary/20" : ""}`}
+                              onClick={() => setExpandedSkill(isExpanded ? null : g.skill)}
+                              aria-expanded={isExpanded}
+                            >
+                              <td className="py-3 font-medium text-foreground flex items-center gap-2">
+                                {resources.length > 0 && (
+                                  <span className="text-muted-foreground text-xs">{isExpanded ? "▾" : "▸"}</span>
+                                )}
+                                {g.skill}
+                              </td>
+                              <td className="py-3 text-muted-foreground">{g.have}</td>
+                              <td className="py-3 text-muted-foreground">{g.need}</td>
+                              <td className={`py-3 font-medium ${gapColor[g.gapLevel]}`}>{g.gapLevel}</td>
+                            </tr>
+                            {isExpanded && resources.length > 0 && (
+                              <tr className="border-b border-border/50 bg-secondary/10">
+                                <td colSpan={4} className="py-3 px-4">
+                                  <div className="flex flex-col gap-2">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                      📚 Learning Resources for {g.skill}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {resources.map((r) => (
+                                        <Button key={r.url} asChild variant="outline" size="sm" className="h-8 px-3 text-xs">
+                                          <a
+                                            href={r.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
+                                          >
+                                            {r.label}
+                                          </a>
+                                        </Button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
