@@ -43,6 +43,8 @@ export default function InterviewPrepPage({
   const [selectedJobId, setSelectedJobId] = useState("");
   const [uploadingJd, setUploadingJd] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [interviewDate, setInterviewDate] = useState("");
+  const [confirmedInterviewDate, setConfirmedInterviewDate] = useState<string>("");
   const jdFileRef = useRef<HTMLInputElement>(null);
   const resumeFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -131,8 +133,10 @@ export default function InterviewPrepPage({
         company,
         jdText: jd,
         resumeText: resume,
+        interviewDate: interviewDate || undefined,
       });
       setActiveSession(session);
+      setConfirmedInterviewDate(interviewDate || "");
       setShowForm(false);
       toast({ title: "Prep session ready!", description: `Analysis complete for ${company}` });
     } catch (error) {
@@ -201,6 +205,19 @@ export default function InterviewPrepPage({
                 <Label>Company Name</Label>
                 <Input value={company} onChange={(e) => setCompany(e.target.value)} required className="mt-1 bg-secondary/50" placeholder="e.g. Google" />
               </div>
+            </div>
+            <div>
+              <Label>Interview Date <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Input
+                type="date"
+                value={interviewDate}
+                min={new Date().toISOString().split("T")[0]}
+                onChange={(e) => setInterviewDate(e.target.value)}
+                className="mt-1 bg-secondary/50"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Set your interview date to get a tailored study roadmap
+              </p>
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -308,7 +325,12 @@ export default function InterviewPrepPage({
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h2 className="text-xl font-bold text-foreground">{activeSession.company} — {activeSession.jobTitle}</h2>
-              <p className="text-sm text-muted-foreground">Generated on {new Date(activeSession.createdAt).toLocaleDateString()}</p>
+              <p className="text-sm text-muted-foreground">
+                Generated on {new Date(activeSession.createdAt).toLocaleDateString()}
+                {confirmedInterviewDate && (
+                  <span> · 🗓️ Interview on {new Date(confirmedInterviewDate).toLocaleDateString()}</span>
+                )}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               {linkedJob && (
@@ -531,7 +553,7 @@ export default function InterviewPrepPage({
             {[...sessions].reverse().map((s) => (
               <div
                 key={s.id}
-                onClick={() => setActiveSession(s)}
+                onClick={() => { setActiveSession(s); setConfirmedInterviewDate(""); }}
                 className="rounded-xl bg-card border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors cursor-pointer"
               >
                 <div>

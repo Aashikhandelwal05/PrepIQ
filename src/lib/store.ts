@@ -141,6 +141,7 @@ export interface CreateInterviewSessionInput {
   company: string;
   jdText: string;
   resumeText: string;
+  interviewDate?: string;
 }
 
 export interface CreateMockAttemptInput {

@@ -383,6 +383,7 @@ class CreateInterviewSessionRequest(BaseModel):
     company: str
     jdText: str = ""
     resumeText: str = ""
+    interviewDate: str = ""
 
     @field_validator("jobTitle", "company", mode="after")
     @classmethod
@@ -692,8 +693,25 @@ async def generate_session_payload(
     company: str,
     jd_text: str,
     resume_text: str,
+    days_remaining: int | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> tuple[list[GapItem], int, list[QuestionItem], list[RoadmapDay]]:
+    if days_remaining is None:
+        roadmap_days = 5
+        roadmap_instruction = "roadmap must be an array with exactly 5 days."
+    elif days_remaining <= 2:
+        roadmap_days = max(1, days_remaining)
+        roadmap_instruction = f"roadmap must be an array with exactly {roadmap_days} day(s). This is an urgent condensed sprint plan."
+    elif days_remaining <= 5:
+        roadmap_days = days_remaining
+        roadmap_instruction = f"roadmap must be an array with exactly {roadmap_days} days. This is a standard prep plan."
+    elif days_remaining <= 14:
+        roadmap_days = min(days_remaining, 10)
+        roadmap_instruction = f"roadmap must be an array with exactly {roadmap_days} days. This is an extended prep plan."
+    else:
+        roadmap_days = 10
+        roadmap_instruction = "roadmap must be an array with exactly 10 days. This is a long-term prep plan."
+
     try:
         response = await call_openrouter_json(
             system_prompt=(
@@ -706,7 +724,7 @@ async def generate_session_payload(
                 '"roadmap":[{"day":1,"focusArea":"string","tasks":["string"]}]}. '
                 "gapAnalysis must be an array with 3 to 5 items. "
                 "questionBank must be an array with 6 to 10 items. "
-                "roadmap must be an array with exactly 5 days."
+                f"{roadmap_instruction}"
             ),
             user_prompt=(
                 f"Job title: {job_title}\n"
@@ -838,53 +856,14 @@ async def generate_session_payload(
             tip="Demonstrate triage, communication, and follow-through.",
         ),
     ]
-    roadmap = [
-        RoadmapDay(
-            day=1,
-            focusArea="Company Research",
-            tasks=[
-                f"Research {company}'s products",
-                "Study the team and stack",
-                "Read recent company updates",
-            ],
-        ),
-        RoadmapDay(
-            day=2,
-            focusArea="Technical Review",
-            tasks=[
-                "Review core concepts",
-                f"Practice {job_title}-specific problems",
-                "Refresh system design patterns",
-            ],
-        ),
-        RoadmapDay(
-            day=3,
-            focusArea="Behavioral Prep",
-            tasks=[
-                "Prepare STAR stories",
-                "Practice behavioral questions",
-                "Review achievements with metrics",
-            ],
-        ),
-        RoadmapDay(
-            day=4,
-            focusArea="Mock Interviews",
-            tasks=[
-                "Run 2 mock rounds",
-                "Review weak answers",
-                "Refine delivery and examples",
-            ],
-        ),
-        RoadmapDay(
-            day=5,
-            focusArea="Final Review",
-            tasks=[
-                "Review notes",
-                "Prepare questions to ask",
-                "Rest before the interview",
-            ],
-        ),
-    ]
+    roadmap_days = roadmap_days if 'roadmap_days' in dir() else 5
+    roadmap = [r for r in [
+        RoadmapDay(day=1, focusArea="Company Research", tasks=[f"Research {company}'s products", "Study the team and stack", "Read recent company updates"]),
+        RoadmapDay(day=2, focusArea="Technical Review", tasks=["Review core concepts", f"Practice {job_title}-specific problems", "Refresh system design patterns"]),
+        RoadmapDay(day=3, focusArea="Behavioral Prep", tasks=["Prepare STAR stories", "Practice behavioral questions", "Review achievements with metrics"]),
+        RoadmapDay(day=4, focusArea="Mock Interviews", tasks=["Run 2 mock rounds", "Review weak answers", "Refine delivery and examples"]),
+        RoadmapDay(day=5, focusArea="Final Review", tasks=["Review notes", "Prepare questions to ask", "Rest before the interview"]),
+    ][:roadmap_days]]
     is_estimated = not resume_text.strip() and not jd_text.strip()
     return gap_analysis, readiness, question_bank, roadmap, is_estimated
 
@@ -1477,6 +1456,16 @@ async def create_session(
     db: Session = Depends(get_db),
 ) -> InterviewSession:
     client = getattr(request.app.state, "httpx_client", None)
+    days_remaining = None
+    if payload.interviewDate:
+        try:
+            interview_dt = datetime.fromisoformat(payload.interviewDate).date()
+            today = utc_now().date()
+            delta = (interview_dt - today).days
+            days_remaining = max(1, delta)
+        except ValueError:
+            days_remaining = None
+
     (
         gap_analysis,
         readiness,
@@ -1488,6 +1477,7 @@ async def create_session(
         payload.company,
         payload.jdText,
         payload.resumeText,
+        days_remaining=days_remaining,
         client=client,
     )
 
