@@ -234,7 +234,14 @@ export default function InterviewPrepPage({
                   </Button>
                 </div>
               </div>
-              <Textarea value={jd} onChange={(e) => setJd(e.target.value)} rows={4} className="bg-secondary/50" placeholder="Paste the job description or upload a file..." />
+              <Textarea
+                value={jd}
+                onChange={(e) => setJd(e.target.value)}
+                rows={4}
+                disabled={uploadingJd}
+                className={`bg-secondary/50 transition-opacity duration-200 ${uploadingJd ? "opacity-50" : ""}`}
+                placeholder={uploadingJd ? "Extracting text..." : "Paste the job description or upload a file..."}
+              />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -268,7 +275,14 @@ export default function InterviewPrepPage({
                   </Button>
                 </div>
               </div>
-              <Textarea value={resume} onChange={(e) => setResume(e.target.value)} rows={4} className="bg-secondary/50" placeholder="Paste your resume content or upload a file..." />
+              <Textarea
+                value={resume}
+                onChange={(e) => setResume(e.target.value)}
+                rows={4}
+                disabled={uploadingResume}
+                className={`bg-secondary/50 transition-opacity duration-200 ${uploadingResume ? "opacity-50" : ""}`}
+                placeholder={uploadingResume ? "Extracting text..." : "Paste your resume content or upload a file..."}
+              />
             </div>
             <div className="flex gap-3">
               <Button type="submit" disabled={loading} className="gradient-primary text-primary-foreground">

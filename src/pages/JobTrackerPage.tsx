@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { CreateJobApplicationInput, JobApplication, InterviewSession } from "@/lib/store";
-import { apiRequest } from "@/lib/api";
+
 import {
   Command,
   CommandEmpty,
@@ -440,11 +440,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
   const handleDeleteJob = async (jobId: string) => {
     setDeletingJob(true);
     try {
-      await apiRequest(`/api/users/${userId}/jobs/${jobId}`, {
-        method: "DELETE",
-      });
-
-      onDeleteJob(jobId);
+      await onDeleteJob(jobId);
 
       setLocalJobs((prev) => prev.filter((j) => j.id !== jobId));
       if (selectedJob?.id === jobId) {

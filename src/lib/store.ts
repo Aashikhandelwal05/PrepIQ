@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiRequest, SESSION_KEY } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  anonymousMode?: boolean;
 }
 
 export interface AuthSession {
@@ -170,46 +173,7 @@ function setSession(session: AuthSession | null) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
-function useProtectedResource<T, R = T>(path: string | null, fallback: T, transform?: (payload: R) => T) {
-  const fallbackRef = useRef(fallback);
-  const [data, setData] = useState<T>(fallback);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!path) {
-      setData(fallbackRef.current);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    let active = true;
-    setLoading(true);
-    setError(null);
-    apiRequest<R>(path)
-      .then((result) => {
-        if (!active) return;
-        setData(transform ? transform(result) : (result as unknown as T));
-        setError(null);
-      })
-      .catch((requestError) => {
-        if (!active) return;
-        setError(requestError instanceof Error ? requestError.message : "Unable to load data");
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [path, transform]);
-
-  return [data, setData, error, loading] as const;
-}
+// Legacy useProtectedResource hook removed in favor of TanStack React Query.
 
 export function getMockAttemptItems(payload: MockAttempt[] | PaginatedMockAttempts): MockAttempt[] {
   return Array.isArray(payload) ? payload : payload.items;
@@ -281,86 +245,177 @@ export function useAuth() {
     setSession(null);
   }, []);
 
-  return { user: session?.user ?? null, login, signup, logout, hydrated };
+  const updateUser = useCallback((updatedUser: User) => {
+    setSessionState((prev) => {
+      if (!prev) return null;
+      const nextSession = { ...prev, user: updatedUser };
+      setSession(nextSession);
+      return nextSession;
+    });
+  }, []);
+
+  return { user: session?.user ?? null, login, signup, logout, hydrated, updateUser };
 }
 
 export function useCareerProfile(userId: string | undefined) {
-  const [profile, setProfile, profileError, profileLoading] = useProtectedResource<CareerProfile | null>(userId ? `/api/users/${userId}/profile` : null, null);
+  const queryClient = useQueryClient();
+  const profileQuery = useQuery<CareerProfile | null>({
+    queryKey: ["careerProfile", userId],
+    queryFn: () => apiRequest<CareerProfile>(`/api/users/${userId}/profile`),
+    enabled: !!userId,
+  });
+
+  const saveProfileMutation = useMutation({
+    mutationFn: (data: CareerProfile) =>
+      apiRequest<CareerProfile>(`/api/users/${data.userId}/profile`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["careerProfile", userId], saved);
+    },
+  });
 
   const saveProfile = useCallback(async (data: CareerProfile) => {
-    const saved = await apiRequest<CareerProfile>(`/api/users/${data.userId}/profile`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-    setProfile(saved);
-    return saved;
-  }, [setProfile]);
+    return saveProfileMutation.mutateAsync(data);
+  }, [saveProfileMutation]);
 
-  return { profile, saveProfile, profileError, profileLoading };
+  return {
+    profile: profileQuery.data ?? null,
+    saveProfile,
+    profileError: profileQuery.error instanceof Error ? profileQuery.error.message : null,
+    profileLoading: profileQuery.isLoading,
+  };
 }
 
 export function useInterviewSessions(userId: string | undefined) {
-  const [sessions, setSessions, sessionsError, sessionsLoading] = useProtectedResource<InterviewSession[]>(userId ? `/api/users/${userId}/sessions` : null, []);
+  const queryClient = useQueryClient();
+  const sessionsQuery = useQuery<InterviewSession[]>({
+    queryKey: ["interviewSessions", userId],
+    queryFn: () => apiRequest<InterviewSession[]>(`/api/users/${userId}/sessions`),
+    enabled: !!userId,
+  });
+
+  const addSessionMutation = useMutation({
+    mutationFn: (input: CreateInterviewSessionInput) => {
+      if (!userId) throw new Error("User is not authenticated");
+      return apiRequest<InterviewSession>(`/api/users/${userId}/sessions`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["interviewSessions", userId] });
+    },
+  });
 
   const addSession = useCallback(async (input: CreateInterviewSessionInput) => {
-    if (!userId) throw new Error("User is not authenticated");
-    const created = await apiRequest<InterviewSession>(`/api/users/${userId}/sessions`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-    setSessions((prev) => [...prev, created]);
-    return created;
-  }, [setSessions, userId]);
+    return addSessionMutation.mutateAsync(input);
+  }, [addSessionMutation]);
 
-  return { sessions, addSession, sessionsError, sessionsLoading };
+  return {
+    sessions: sessionsQuery.data ?? [],
+    addSession,
+    sessionsError: sessionsQuery.error instanceof Error ? sessionsQuery.error.message : null,
+    sessionsLoading: sessionsQuery.isLoading,
+  };
 }
 
 export function useMockAttempts(userId: string | undefined) {
-  const [attempts, setAttempts, attemptsError, attemptsLoading] = useProtectedResource<MockAttempt[]>(
-    userId ? `/api/users/${userId}/mocks` : null,
-    [],
-    getMockAttemptItems,
-  );
+  const queryClient = useQueryClient();
+  const attemptsQuery = useQuery<MockAttempt[]>({
+    queryKey: ["mockAttempts", userId],
+    queryFn: async () => {
+      const payload = await apiRequest<MockAttempt[] | PaginatedMockAttempts>(`/api/users/${userId}/mocks`);
+      return getMockAttemptItems(payload);
+    },
+    enabled: !!userId,
+  });
+
+  const addAttemptMutation = useMutation({
+    mutationFn: (input: CreateMockAttemptInput) => {
+      if (!userId) throw new Error("User is not authenticated");
+      return apiRequest<MockAttempt>(`/api/users/${userId}/mocks`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mockAttempts", userId] });
+    },
+  });
 
   const addAttempt = useCallback(async (input: CreateMockAttemptInput) => {
-    if (!userId) throw new Error("User is not authenticated");
-    const created = await apiRequest<MockAttempt>(`/api/users/${userId}/mocks`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-    setAttempts((prev) => [...prev, created]);
-    return created;
-  }, [setAttempts, userId]);
+    return addAttemptMutation.mutateAsync(input);
+  }, [addAttemptMutation]);
 
-  return { attempts, addAttempt, attemptsError, attemptsLoading };
+  return {
+    attempts: attemptsQuery.data ?? [],
+    addAttempt,
+    attemptsError: attemptsQuery.error instanceof Error ? attemptsQuery.error.message : null,
+    attemptsLoading: attemptsQuery.isLoading,
+  };
 }
 
 export function useJobApplications(userId: string | undefined) {
-  const [jobs, setJobs, jobsError, jobsLoading] = useProtectedResource<JobApplication[]>(userId ? `/api/users/${userId}/jobs` : null, []);
+  const queryClient = useQueryClient();
+  const jobsQuery = useQuery<JobApplication[]>({
+    queryKey: ["jobApplications", userId],
+    queryFn: () => apiRequest<JobApplication[]>(`/api/users/${userId}/jobs`),
+    enabled: !!userId,
+  });
+
+  const addJobMutation = useMutation({
+    mutationFn: (input: CreateJobApplicationInput) => {
+      if (!userId) throw new Error("User is not authenticated");
+      return apiRequest<JobApplication>(`/api/users/${userId}/jobs`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobApplications", userId] });
+    },
+  });
+
+  const updateJobMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<JobApplication> }) => {
+      if (!userId) throw new Error("User is not authenticated");
+      return apiRequest<JobApplication>(`/api/users/${userId}/jobs/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobApplications", userId] });
+    },
+  });
+
+  const deleteJobMutation = useMutation({
+    mutationFn: (id: string) => {
+      if (!userId) throw new Error("User is not authenticated");
+      return apiRequest<void>(`/api/users/${userId}/jobs/${id}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobApplications", userId] });
+    },
+  });
 
   const addJob = useCallback(async (input: CreateJobApplicationInput) => {
-    if (!userId) throw new Error("User is not authenticated");
-    const created = await apiRequest<JobApplication>(`/api/users/${userId}/jobs`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-    setJobs((prev) => [...prev, created]);
-    return created;
-  }, [setJobs, userId]);
+    return addJobMutation.mutateAsync(input);
+  }, [addJobMutation]);
 
   const updateJob = useCallback(async (id: string, updates: Partial<JobApplication>) => {
-    if (!userId) throw new Error("User is not authenticated");
-    const updated = await apiRequest<JobApplication>(`/api/users/${userId}/jobs/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(updates),
-    });
-    setJobs((prev) => prev.map((job) => (job.id === id ? updated : job)));
-    return updated;
-  }, [setJobs, userId]);
+    return updateJobMutation.mutateAsync({ id, updates });
+  }, [updateJobMutation]);
 
-  const deleteJob = useCallback((id: string) => {
-    setJobs((prev) => prev.filter((job) => job.id !== id));
-  }, [setJobs]);
+  const deleteJob = useCallback(async (id: string) => {
+    return deleteJobMutation.mutateAsync(id);
+  }, [deleteJobMutation]);
 
-  return { jobs, addJob, updateJob, deleteJob, jobsError, jobsLoading };
+  const jobs = jobsQuery.data ?? [];
+  return { jobs, addJob, updateJob, deleteJob, jobsError: jobsQuery.error instanceof Error ? jobsQuery.error.message : null, jobsLoading: jobsQuery.isLoading };
 }
+
