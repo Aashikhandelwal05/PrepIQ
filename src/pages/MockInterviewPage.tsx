@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   MessageSquare, Loader2, CheckCircle, XCircle,
@@ -183,6 +183,7 @@ export default function MockInterviewPage({
   const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<string>("custom");
   const { toast } = useToast();
+  const answerRef = useRef<HTMLTextAreaElement>(null);
 
   // ── NEW: AI question generation state ──────────────────────────────────
   const [selectedRole, setSelectedRole] = useState<string>("");
@@ -568,6 +569,7 @@ export default function MockInterviewPage({
               </div>
             </div>
             <Textarea
+              ref={answerRef}
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               placeholder="Type your answer here..."
@@ -741,6 +743,19 @@ export default function MockInterviewPage({
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={scoreColor(a.aiScore)}>{a.aiScore}/10</Badge>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          beginQuestion(a.question);
+                          answerRef.current?.focus();
+                          answerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                        Retake
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
