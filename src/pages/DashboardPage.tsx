@@ -170,54 +170,42 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
         </div>
       )}
 
-      {/* Stats */}
+      {/*Stats*/}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div
+        <StatCard
+          icon={BookOpen}
+          label="Prep Sessions"
+          value={sessions.length}
+          tooltip="Click to view your interview prep sessions"
           onClick={() => navigate("/interview-prep")}
-          className="cursor-pointer transition hover:scale-[1.02]"
-        >
-          <StatCard
-            icon={BookOpen}
-            label="Prep Sessions"
-            value={sessions.length}
-          />
-        </div>
+        />
 
-        <div
+        <StatCard
+          icon={MessageSquare}
+          label="Mock Interviews"
+          value={mocks.length}
+          gradient="gradient-accent"
+          tooltip="Click to view your mock interview history"
           onClick={() => navigate("/mock-interview")}
-          className="cursor-pointer transition hover:scale-[1.02]"
-        >
-          <StatCard
-            icon={MessageSquare}
-            label="Mock Interviews"
-            value={mocks.length}
-            gradient="gradient-accent"
-          />
-        </div>
+        />
 
-        <div
+        <StatCard
+          icon={Briefcase}
+          label="Jobs Applied"
+          value={jobs.length}
+          gradient="gradient-warm"
+          tooltip="Click to view your job applications"
           onClick={() => navigate("/job-tracker")}
-          className="cursor-pointer transition hover:scale-[1.02]"
-        >
-          <StatCard
-            icon={Briefcase}
-            label="Jobs Applied"
-            value={jobs.length}
-            gradient="gradient-warm"
-          />
-        </div>
+        />
 
-        <div
-          onClick={() => navigate("/progress")}
-          className="cursor-pointer transition hover:scale-[1.02]"
-        >
-          <StatCard
-            icon={TrendingUp}
-            label="Avg Mock Score"
-            value={`${avgScore * 10}/100`}
-            gradient="gradient-success"
-          />
-        </div>
+        <StatCard
+          icon={TrendingUp}
+          label="Avg Mock Score"
+          value={`${avgScore * 10}/100`}
+          gradient="gradient-success"
+          tooltip="Average score across all mock interviews"
+        />
       </div>
 
       {/* Quick Actions */}

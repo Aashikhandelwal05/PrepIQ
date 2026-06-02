@@ -68,19 +68,48 @@ def load_local_env() -> None:
 
 load_local_env()
 
+# Environments where SQLite and insecure defaults are explicitly permitted.
+# Any value not in this set is treated as production-like and requires real config.
+_LOCAL_ENVS = {"development", "dev", "test", "local"}
+APP_ENV = os.getenv("APP_ENV", "development").lower()
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/prepiq"
-)
-APP_SECRET = os.getenv("APP_SECRET", "change-me-in-production")
-_INSECURE_DEFAULTS = {"change-me-in-production", ""}
-if APP_SECRET in _INSECURE_DEFAULTS:
-    raise RuntimeError(
-        "APP_SECRET is unset or still has the default value. "
-        "Set a strong secret in your .env file before starting the app."
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    if APP_ENV not in _LOCAL_ENVS:
+        raise RuntimeError(
+            f"[{APP_ENV.upper()}] DATABASE_URL is missing. "
+            "Refusing to start — SQLite fallback is not allowed outside local/development environments. "
+            f"Set APP_ENV to one of {sorted(_LOCAL_ENVS)} to permit the SQLite fallback, "
+            "or set DATABASE_URL to a real database URL."
+        )
+    # Intentional: SQLite is the local development default when no DATABASE_URL is configured.
+    DATABASE_URL = "sqlite:///./local.db"
+    logger.warning(
+        "DATABASE_URL not set. Falling back to local SQLite: "
+        "'sqlite:///./local.db'. Do NOT use this in production."
     )
+
+_APP_SECRET_DEFAULT = "change-me-in-production"
+APP_SECRET = os.getenv("APP_SECRET", _APP_SECRET_DEFAULT)
+if APP_SECRET in {_APP_SECRET_DEFAULT, ""}:
+    if APP_ENV not in _LOCAL_ENVS:
+        raise RuntimeError(
+            f"[{APP_ENV.upper()}] APP_SECRET is unset or still has the default value. "
+            "Refusing to start — set a strong secret in your environment before starting the app."
+        )
+    logger.warning(
+        "APP_SECRET is set to the insecure default. "
+        "Tokens can be forged by anyone. Do NOT use this in production."
+    )
+
 ACCESS_TOKEN_TTL_HOURS = int(os.getenv("ACCESS_TOKEN_TTL_HOURS", "168"))
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+if not OPENROUTER_API_KEY and APP_ENV not in _LOCAL_ENVS:
+    logger.warning(
+        "[%s] OPENROUTER_API_KEY is not set. "
+        "All AI-powered features will silently use the static fallback responses.",
+        APP_ENV.upper(),
+    )
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 OPENROUTER_APP_URL = os.getenv(
     "OPENROUTER_APP_URL", "https://github.com/Aashikhandelwal05/prepiq"
@@ -98,7 +127,8 @@ CORS_ORIGINS = [
     if origin.strip()
 ]
 
-engine = create_engine(DATABASE_URL, future=True)
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, future=True, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
@@ -113,6 +143,9 @@ class UserTable(Base):
     name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    anonymous_mode: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -194,6 +227,29 @@ class JobApplicationTable(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class MentorChatSessionTable(Base):
+    __tablename__ = "mentor_chat_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class MentorChatHistoryTable(Base):
+    __tablename__ = "mentor_chat_history"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    session_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True
+    )
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    role: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -268,6 +324,7 @@ class User(BaseModel):
     id: str
     name: str
     email: str
+    anonymousMode: bool = False
 
 
 class AuthResponse(BaseModel):
@@ -444,6 +501,22 @@ class CreateJobApplicationRequest(BaseModel):
     jobUrl: str
     status: JobStatus
 
+    @field_validator("companyName", "jobTitle")
+    @classmethod
+    def non_empty(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("must not be empty or whitespace-only")
+        return stripped
+
+    @field_validator("jobUrl")
+    @classmethod
+    def valid_url(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped.startswith(("http://", "https://")):
+            raise ValueError("must be a valid HTTP or HTTPS URL")
+        return stripped
+
 
 class UpdateJobApplicationRequest(BaseModel):
     companyName: str | None = None
@@ -462,7 +535,12 @@ class UpdateJobApplicationRequest(BaseModel):
 
 
 def user_from_table(user: UserTable) -> User:
-    return User(id=user.id, name=user.name, email=user.email)
+    return User(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        anonymousMode=getattr(user, "anonymous_mode", False),
+    )
 
 
 def profile_from_table(profile: ProfileTable) -> CareerProfile:
@@ -650,9 +728,7 @@ async def call_openrouter_json(
         content = raw_content.strip()
         # Clean markdown code blocks if the LLM wrapped the JSON response
         if content.startswith("```"):
-            # Strip leading ```json or ``` and optional newline
             content = re.sub(r"^```(?:json)?\s*\n?", "", content)
-            # Strip trailing ```
             content = re.sub(r"\n?\s*```$", "", content)
             content = content.strip()
         return json.loads(content)
@@ -683,6 +759,7 @@ async def generate_session_payload(
 
     safe_resume = sanitize_and_wrap(resume_text or "Not provided")
     safe_jd = sanitize_and_wrap(jd_text or "Not provided")
+) -> tuple[list[GapItem], int, list[QuestionItem], list[RoadmapDay], bool]:
     try:
         response = await call_openrouter_json(
             system_prompt=(
@@ -706,14 +783,12 @@ async def generate_session_payload(
             ),
             client=client,
         )
-        # Standardize keys by mapping case-insensitive options
         if isinstance(response, list) and len(response) > 0:
             response = response[0]
         if not isinstance(response, dict):
             response = {}
         norm_res = {k.lower(): v for k, v in response.items()}
 
-        # Helper to normalize dict keys to match Pydantic expectations
         def norm_dict(d, mapping):
             if not isinstance(d, dict):
                 return d
@@ -777,7 +852,6 @@ async def generate_session_payload(
             "Using fallback prep session payload because OpenRouter failed: %s", exc
         )
 
-    # Fallback: use ML match score as readiness when OpenRouter is unavailable
     scores = compute_match_score(resume_text, jd_text)
     readiness = scores["overallScore"]
     gap_analysis = [
@@ -1000,7 +1074,6 @@ def _fallback_answer_quality(question: str, answer: str) -> float:
 async def evaluate_mock_attempt(
     question: str, answer: str, client: httpx.AsyncClient | None = None
 ) -> tuple[int, MockFeedback]:
-    # --- ML: always analyze confidence regardless of OpenRouter outcome ---
     confidence = ConfidenceAnalysis(**analyze_confidence(answer))
     if len(question or "") > QUESTION_MAX_LENGTH:
         raise HTTPException(
@@ -1058,7 +1131,6 @@ async def evaluate_mock_attempt(
             ),
             client=client,
         )
-        # Standardize keys by mapping case-insensitive options
         if isinstance(response, list) and len(response) > 0:
             response = response[0]
         if not isinstance(response, dict):
@@ -1216,6 +1288,63 @@ async def startup() -> None:
     )
     try:
         Base.metadata.create_all(bind=engine)
+
+        from sqlalchemy import text
+
+        with engine.begin() as conn:
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE users ADD COLUMN anonymous_mode BOOLEAN DEFAULT FALSE"
+                    )
+                )
+            except Exception:
+                pass
+
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE mentor_chat_history ADD COLUMN session_id VARCHAR(36)"
+                    )
+                )
+            except Exception:
+                pass
+
+            try:
+                res = conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM mentor_chat_history WHERE session_id IS NULL"
+                    )
+                )
+                if res.scalar() > 0:
+                    users = conn.execute(
+                        text(
+                            "SELECT DISTINCT user_id FROM mentor_chat_history WHERE session_id IS NULL"
+                        )
+                    ).fetchall()
+                    for row in users:
+                        uid = row[0]
+                        sid = str(uuid4())
+                        now_dt = utc_now()
+                        conn.execute(
+                            text(
+                                "INSERT INTO mentor_chat_sessions (id, user_id, title, created_at, updated_at) VALUES (:id, :uid, :title, :now, :now)"
+                            ),
+                            {
+                                "id": sid,
+                                "uid": uid,
+                                "title": "Previous Chats",
+                                "now": now_dt,
+                            },
+                        )
+                        conn.execute(
+                            text(
+                                "UPDATE mentor_chat_history SET session_id = :sid WHERE user_id = :uid AND session_id IS NULL"
+                            ),
+                            {"sid": sid, "uid": uid},
+                        )
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Migration error: {e}")
     except Exception:
         logging.getLogger(__name__).exception("Failed to create database tables")
         raise
@@ -1434,7 +1563,6 @@ async def create_session(
         client=client,
     )
 
-    # --- ML: extract skills from resume ---
     skills = extract_skills(payload.resumeText)
     scores = compute_match_score(payload.resumeText, payload.jdText)
     ml_score = scores["overallScore"]
@@ -1500,7 +1628,7 @@ def get_mock_attempts(
         default=20,
         ge=1,
         le=100,
-        description="No. of results that will be returned (1–100)",
+        description="No. of results that will be returned (1-100)",
     ),
     offset: int = Query(
         default=0, ge=0, description="Number of results that has to be skipped"
@@ -1740,7 +1868,7 @@ async def generate_mock_question(
                 "You generate realistic technical and behavioral interview questions. "
                 "Return valid JSON only. Do not include markdown or explanations. "
                 'Use exactly this schema: {"question": "string"}. '
-                "Return only the question text — no numbering, no preamble, no tips."
+                "Return only the question text - no numbering, no preamble, no tips."
             ),
             user_prompt=(
                 f"Generate one realistic {payload.difficulty}-level interview question "
@@ -1754,7 +1882,6 @@ async def generate_mock_question(
         return GenerateQuestionResponse(question=question_text)
 
     except OpenRouterError:
-        # Curated fallback questions indexed by role + difficulty
         fallbacks: dict[str, dict[str, str]] = {
             "Frontend Developer": {
                 "Easy": "What is the difference between `null` and `undefined` in JavaScript?",
@@ -1769,7 +1896,7 @@ async def generate_mock_question(
             "Full Stack Developer": {
                 "Easy": "What happens between a user typing a URL and the page loading in the browser?",
                 "Medium": "How would you handle authentication state across a React SPA and a Node.js API?",
-                "Hard": "Design a real-time collaborative document editor — describe both the frontend state model and the backend sync strategy.",
+                "Hard": "Design a real-time collaborative document editor - describe both the frontend state model and the backend sync strategy.",
             },
             "Machine Learning Engineer": {
                 "Easy": "What is the difference between supervised and unsupervised learning?",
@@ -1862,3 +1989,387 @@ def ml_match_score(payload: MatchScoreRequest) -> MatchScoreResponse:
 def ml_analyze_confidence(payload: ConfidenceRequest) -> ConfidenceAnalysis:
     result = analyze_confidence(payload.text)
     return ConfidenceAnalysis(**result)
+
+
+class MentorChatSessionModel(BaseModel):
+    id: str
+    userId: str
+    title: str
+    createdAt: str
+    updatedAt: str
+
+
+class MentorChatSessionUpdate(BaseModel):
+    title: str
+
+
+class MentorChatMessage(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: str
+
+
+class MentorChatRequest(BaseModel):
+    message: str
+
+
+@app.get(
+    "/api/users/{user_id}/mentor-chat/sessions",
+    response_model=list[MentorChatSessionModel],
+)
+def get_mentor_chat_sessions(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+) -> list[MentorChatSessionModel]:
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    sessions = db.scalars(
+        select(MentorChatSessionTable)
+        .where(MentorChatSessionTable.user_id == user_id)
+        .order_by(MentorChatSessionTable.updated_at.desc())
+    ).all()
+
+    return [
+        MentorChatSessionModel(
+            id=s.id,
+            userId=s.user_id,
+            title=s.title,
+            createdAt=s.created_at.isoformat(),
+            updatedAt=s.updated_at.isoformat(),
+        )
+        for s in sessions
+    ]
+
+
+@app.post(
+    "/api/users/{user_id}/mentor-chat/sessions", response_model=MentorChatSessionModel
+)
+def create_mentor_chat_session(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+) -> MentorChatSessionModel:
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    sid = str(uuid4())
+    now_dt = utc_now()
+    new_session = MentorChatSessionTable(
+        id=sid, user_id=user_id, title="New Chat", created_at=now_dt, updated_at=now_dt
+    )
+    db.add(new_session)
+    db.commit()
+    return MentorChatSessionModel(
+        id=new_session.id,
+        userId=new_session.user_id,
+        title=new_session.title,
+        createdAt=new_session.created_at.isoformat(),
+        updatedAt=new_session.updated_at.isoformat(),
+    )
+
+
+@app.patch(
+    "/api/users/{user_id}/mentor-chat/sessions/{session_id}",
+    response_model=MentorChatSessionModel,
+)
+def update_mentor_chat_session(
+    user_id: str,
+    session_id: str,
+    payload: MentorChatSessionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+) -> MentorChatSessionModel:
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    session = db.get(MentorChatSessionTable, session_id)
+    if not session or session.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session.title = payload.title
+    session.updated_at = utc_now()
+    db.commit()
+
+    return MentorChatSessionModel(
+        id=session.id,
+        userId=session.user_id,
+        title=session.title,
+        createdAt=session.created_at.isoformat(),
+        updatedAt=session.updated_at.isoformat(),
+    )
+
+
+@app.delete("/api/users/{user_id}/mentor-chat/sessions/{session_id}")
+def delete_mentor_chat_session(
+    user_id: str,
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+) -> dict[str, str]:
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    session = db.get(MentorChatSessionTable, session_id)
+    if not session or session.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    db.execute(
+        delete(MentorChatHistoryTable).where(
+            MentorChatHistoryTable.session_id == session_id
+        )
+    )
+    db.delete(session)
+    db.commit()
+
+    return {"status": "ok"}
+
+
+@app.get(
+    "/api/users/{user_id}/mentor-chat/sessions/{session_id}/messages",
+    response_model=list[MentorChatMessage],
+)
+def get_mentor_chat_messages(
+    user_id: str,
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+) -> list[MentorChatMessage]:
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    history = db.scalars(
+        select(MentorChatHistoryTable)
+        .where(
+            MentorChatHistoryTable.user_id == user_id,
+            MentorChatHistoryTable.session_id == session_id,
+        )
+        .order_by(MentorChatHistoryTable.created_at.asc())
+    ).all()
+
+    return [
+        MentorChatMessage(
+            id=msg.id,
+            role=msg.role,
+            content=msg.content,
+            created_at=msg.created_at.isoformat(),
+        )
+        for msg in history
+    ]
+
+
+@app.post("/api/users/{user_id}/mentor-chat/sessions/{session_id}/messages")
+async def post_mentor_chat_message(
+    user_id: str,
+    session_id: str,
+    payload: MentorChatRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+) -> dict[str, str]:
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    session = db.get(MentorChatSessionTable, session_id)
+    if not session or session.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    now_dt = utc_now()
+    user_msg_id = str(uuid4())
+    user_entry = MentorChatHistoryTable(
+        id=user_msg_id,
+        session_id=session_id,
+        user_id=user_id,
+        role="user",
+        content=payload.message,
+        created_at=now_dt,
+    )
+    db.add(user_entry)
+
+    if session.title == "New Chat":
+        words = payload.message.split()
+        title = " ".join(words[:5]) + ("..." if len(words) > 5 else "")
+        session.title = title
+
+    session.updated_at = now_dt
+    db.commit()
+
+    history = db.scalars(
+        select(MentorChatHistoryTable)
+        .where(
+            MentorChatHistoryTable.user_id == user_id,
+            MentorChatHistoryTable.session_id == session_id,
+        )
+        .order_by(MentorChatHistoryTable.created_at.asc())
+    ).all()
+
+    profile_record = db.get(ProfileTable, user_id)
+    profile_info = ""
+    if profile_record:
+        p = profile_from_table(profile_record)
+        profile_info = (
+            f"User Profile Info:\n"
+            f"- Target Roles: {', '.join(p.targetRoles)}\n"
+            f"- Technical Skills: {', '.join([s.name for s in p.technicalSkills])}\n"
+            f"- Soft Skills: {', '.join(p.softSkills)}\n"
+            f"- Dream Companies: {', '.join(p.dreamCompanies)}\n"
+        )
+
+    system_prompt = (
+        "You are PrepIQ AI Mentor, a friendly and professional mentor focused on learning, academics, skill development, interview preparation, and career growth.\n\n"
+        "Primary Scope:\n"
+        "* Career guidance\n"
+        "* Study-related questions\n"
+        "* Programming and technical topics\n"
+        "* Interview preparation\n"
+        "* Skill development\n"
+        "* Resume and project guidance\n"
+        "* Learning roadmaps\n"
+        "* Academic support\n\n"
+        "Conversation Behavior:\n"
+        "* Be friendly, approachable, and conversational.\n"
+        "* Accept common greetings and social interactions such as: Hi, Hello, Hey, Good morning, Good evening, How are you?, Thank you, Bye, Good night.\n"
+        "* Respond naturally to these conversational messages before guiding the user toward productive mentoring discussions.\n"
+        "* Do not reject users simply because they start with casual conversation.\n"
+        "* Maintain a helpful and welcoming tone.\n\n"
+        "Out-of-Scope Handling:\n"
+        "* For questions unrelated to education, learning, skills, career development, or the user's profile, politely redirect the conversation.\n"
+        "* Instead of abruptly refusing, respond in a friendly manner such as: \"I'm primarily here to help with studies, career development, interview preparation, and skill building. If you'd like help with learning, projects, academics, or career growth, I'd be happy to assist.\"\n"
+        "* Allow brief casual conversation, but gradually guide the discussion back toward educational or career-focused topics.\n\n"
+        "Personalization:\n"
+        "* Use the user's profile, skills, goals, projects, and career interests whenever available.\n"
+        "* Provide practical, actionable, and personalized guidance.\n\n"
+        "Important:\n"
+        "* Be mentor-like, not a strict gatekeeper.\n"
+        "* Greetings, gratitude, and basic social interaction should always receive natural responses.\n"
+        "* Focus on being helpful while keeping the main purpose centered on learning and career growth.\n\n"
+        f"{profile_info}\n"
+        "ALWAYS return JSON with a single key 'reply' containing your answer."
+    )
+    messages_for_llm = [{"role": m.role, "content": m.content} for m in history]
+
+    try:
+        response_dict = await call_openrouter_json(
+            system_prompt=system_prompt, user_prompt=json.dumps(messages_for_llm)
+        )
+        reply_content = response_dict.get(
+            "reply", "I'm sorry, I couldn't formulate a proper reply."
+        )
+    except Exception as e:
+        logger.error("Error calling AI: %s", e)
+        reply_content = (
+            "Sorry, I am having trouble connecting to the AI brain right now."
+        )
+
+    ai_dt = utc_now()
+    ai_msg_id = str(uuid4())
+    ai_entry = MentorChatHistoryTable(
+        id=ai_msg_id,
+        session_id=session_id,
+        user_id=user_id,
+        role="assistant",
+        content=reply_content,
+        created_at=ai_dt,
+    )
+    db.add(ai_entry)
+    session.updated_at = ai_dt
+    db.commit()
+
+    return {"reply": reply_content}
+
+
+class UserPreferencesUpdate(BaseModel):
+    anonymousMode: bool
+
+
+@app.patch("/api/users/{user_id}/preferences", response_model=User)
+def update_user_preferences(
+    user_id: str,
+    payload: UserPreferencesUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+) -> User:
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    user_record = db.get(UserTable, user_id)
+    if not user_record:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_record.anonymous_mode = payload.anonymousMode
+    db.commit()
+
+    return user_from_table(user_record)
+
+
+class AnonymousChatRequest(BaseModel):
+    messages: list[dict[str, str]]
+
+
+@app.post("/api/users/{user_id}/mentor-chat/anonymous")
+async def post_anonymous_chat(
+    user_id: str,
+    payload: AnonymousChatRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+) -> dict[str, str]:
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    profile_record = db.get(ProfileTable, user_id)
+    profile_info = ""
+    if profile_record:
+        p = profile_from_table(profile_record)
+        profile_info = (
+            f"User Profile Info:\n"
+            f"- Target Roles: {', '.join(p.targetRoles)}\n"
+            f"- Technical Skills: {', '.join([s.name for s in p.technicalSkills])}\n"
+            f"- Soft Skills: {', '.join(p.softSkills)}\n"
+            f"- Dream Companies: {', '.join(p.dreamCompanies)}\n"
+        )
+
+    system_prompt = (
+        "You are PrepIQ AI Mentor, a friendly and professional mentor focused on learning, academics, skill development, interview preparation, and career growth.\n\n"
+        "Primary Scope:\n"
+        "* Career guidance\n"
+        "* Study-related questions\n"
+        "* Programming and technical topics\n"
+        "* Interview preparation\n"
+        "* Skill development\n"
+        "* Resume and project guidance\n"
+        "* Learning roadmaps\n"
+        "* Academic support\n\n"
+        "Conversation Behavior:\n"
+        "* Be friendly, approachable, and conversational.\n"
+        "* Accept common greetings and social interactions such as: Hi, Hello, Hey, Good morning, Good evening, How are you?, Thank you, Bye, Good night.\n"
+        "* Respond naturally to these conversational messages before guiding the user toward productive mentoring discussions.\n"
+        "* Do not reject users simply because they start with casual conversation.\n"
+        "* Maintain a helpful and welcoming tone.\n\n"
+        "Out-of-Scope Handling:\n"
+        "* For questions unrelated to education, learning, skills, career development, or the user's profile, politely redirect the conversation.\n"
+        "* Instead of abruptly refusing, respond in a friendly manner such as: \"I'm primarily here to help with studies, career development, interview preparation, and skill building. If you'd like help with learning, projects, academics, or career growth, I'd be happy to assist.\"\n"
+        "* Allow brief casual conversation, but gradually guide the discussion back toward educational or career-focused topics.\n\n"
+        "Personalization:\n"
+        "* Use the user's profile, skills, goals, projects, and career interests whenever available.\n"
+        "* Provide practical, actionable, and personalized guidance.\n\n"
+        "Important:\n"
+        "* Be mentor-like, not a strict gatekeeper.\n"
+        "* Greetings, gratitude, and basic social interaction should always receive natural responses.\n"
+        "* Focus on being helpful while keeping the main purpose centered on learning and career growth.\n\n"
+        f"{profile_info}\n"
+        "ALWAYS return JSON with a single key 'reply' containing your answer."
+    )
+
+    try:
+        response_dict = await call_openrouter_json(
+            system_prompt=system_prompt, user_prompt=json.dumps(payload.messages)
+        )
+        reply_content = response_dict.get(
+            "reply", "I'm sorry, I couldn't formulate a proper reply."
+        )
+    except Exception as e:
+        logger.error("Error calling AI: %s", e)
+        reply_content = (
+            "Sorry, I am having trouble connecting to the AI brain right now."
+        )
+
+    return {"reply": reply_content}
