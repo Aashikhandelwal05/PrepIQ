@@ -61,19 +61,48 @@ def load_local_env() -> None:
 
 load_local_env()
 
+# Environments where SQLite and insecure defaults are explicitly permitted.
+# Any value not in this set is treated as production-like and requires real config.
+_LOCAL_ENVS = {"development", "dev", "test", "local"}
+APP_ENV = os.getenv("APP_ENV", "development").lower()
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/prepiq"
-)
-APP_SECRET = os.getenv("APP_SECRET", "change-me-in-production")
-_INSECURE_DEFAULTS = {"change-me-in-production", ""}
-if APP_SECRET in _INSECURE_DEFAULTS:
-    raise RuntimeError(
-        "APP_SECRET is unset or still has the default value. "
-        "Set a strong secret in your .env file before starting the app."
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    if APP_ENV not in _LOCAL_ENVS:
+        raise RuntimeError(
+            f"[{APP_ENV.upper()}] DATABASE_URL is missing. "
+            "Refusing to start — SQLite fallback is not allowed outside local/development environments. "
+            f"Set APP_ENV to one of {sorted(_LOCAL_ENVS)} to permit the SQLite fallback, "
+            "or set DATABASE_URL to a real database URL."
+        )
+    # Intentional: SQLite is the local development default when no DATABASE_URL is configured.
+    DATABASE_URL = "sqlite:///./local.db"
+    logger.warning(
+        "DATABASE_URL not set. Falling back to local SQLite: "
+        "'sqlite:///./local.db'. Do NOT use this in production."
     )
+
+_APP_SECRET_DEFAULT = "change-me-in-production"
+APP_SECRET = os.getenv("APP_SECRET", _APP_SECRET_DEFAULT)
+if APP_SECRET in {_APP_SECRET_DEFAULT, ""}:
+    if APP_ENV not in _LOCAL_ENVS:
+        raise RuntimeError(
+            f"[{APP_ENV.upper()}] APP_SECRET is unset or still has the default value. "
+            "Refusing to start — set a strong secret in your environment before starting the app."
+        )
+    logger.warning(
+        "APP_SECRET is set to the insecure default. "
+        "Tokens can be forged by anyone. Do NOT use this in production."
+    )
+
 ACCESS_TOKEN_TTL_HOURS = int(os.getenv("ACCESS_TOKEN_TTL_HOURS", "168"))
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+if not OPENROUTER_API_KEY and APP_ENV not in _LOCAL_ENVS:
+    logger.warning(
+        "[%s] OPENROUTER_API_KEY is not set. "
+        "All AI-powered features will silently use the static fallback responses.",
+        APP_ENV.upper(),
+    )
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 OPENROUTER_APP_URL = os.getenv(
     "OPENROUTER_APP_URL", "https://github.com/Aashikhandelwal05/prepiq"
@@ -91,7 +120,8 @@ CORS_ORIGINS = [
     if origin.strip()
 ]
 
-engine = create_engine(DATABASE_URL, future=True)
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, future=True, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
@@ -465,6 +495,22 @@ class CreateJobApplicationRequest(BaseModel):
     jobUrl: str
     status: JobStatus
 
+    @field_validator("companyName", "jobTitle")
+    @classmethod
+    def non_empty(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("must not be empty or whitespace-only")
+        return stripped
+
+    @field_validator("jobUrl")
+    @classmethod
+    def valid_url(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped.startswith(("http://", "https://")):
+            raise ValueError("must be a valid HTTP or HTTPS URL")
+        return stripped
+
 
 class UpdateJobApplicationRequest(BaseModel):
     companyName: str | None = None
@@ -676,9 +722,7 @@ async def call_openrouter_json(
         content = raw_content.strip()
         # Clean markdown code blocks if the LLM wrapped the JSON response
         if content.startswith("```"):
-            # Strip leading ```json or ``` and optional newline
             content = re.sub(r"^```(?:json)?\s*\n?", "", content)
-            # Strip trailing ```
             content = re.sub(r"\n?\s*```$", "", content)
             content = content.strip()
         return json.loads(content)
@@ -712,6 +756,7 @@ async def generate_session_payload(
         roadmap_days = 10
         roadmap_instruction = "roadmap must be an array with exactly 10 days. This is a long-term prep plan."
 
+) -> tuple[list[GapItem], int, list[QuestionItem], list[RoadmapDay], bool]:
     try:
         response = await call_openrouter_json(
             system_prompt=(
@@ -735,14 +780,12 @@ async def generate_session_payload(
             ),
             client=client,
         )
-        # Standardize keys by mapping case-insensitive options
         if isinstance(response, list) and len(response) > 0:
             response = response[0]
         if not isinstance(response, dict):
             response = {}
         norm_res = {k.lower(): v for k, v in response.items()}
 
-        # Helper to normalize dict keys to match Pydantic expectations
         def norm_dict(d, mapping):
             if not isinstance(d, dict):
                 return d
@@ -806,7 +849,6 @@ async def generate_session_payload(
             "Using fallback prep session payload because OpenRouter failed: %s", exc
         )
 
-    # Fallback: use ML match score as readiness when OpenRouter is unavailable
     scores = compute_match_score(resume_text, jd_text)
     readiness = scores["overallScore"]
     gap_analysis = [
@@ -990,12 +1032,10 @@ def _fallback_answer_quality(question: str, answer: str) -> float:
 async def evaluate_mock_attempt(
     question: str, answer: str, client: httpx.AsyncClient | None = None
 ) -> tuple[int, MockFeedback]:
-    # --- ML: always analyze confidence regardless of OpenRouter outcome ---
     confidence = ConfidenceAnalysis(**analyze_confidence(answer))
 
     answer_text = answer.strip()
     answer_words = re.findall(r"\w+", answer_text)
-    # Pre-validation: Catch extremely short or purely gibberish answers early
     if (
         len(answer_words) < 5
         or len(answer_text) < 20
@@ -1034,7 +1074,6 @@ async def evaluate_mock_attempt(
             ),
             client=client,
         )
-        # Standardize keys by mapping case-insensitive options
         if isinstance(response, list) and len(response) > 0:
             response = response[0]
         if not isinstance(response, dict):
@@ -1192,9 +1231,6 @@ async def startup() -> None:
     )
     try:
         Base.metadata.create_all(bind=engine)
-
-        # Migration for mentor_chat_history session_id
-        from uuid import uuid4
 
         from sqlalchemy import text
 
@@ -1481,7 +1517,6 @@ async def create_session(
         client=client,
     )
 
-    # --- ML: extract skills from resume ---
     skills = extract_skills(payload.resumeText)
     scores = compute_match_score(payload.resumeText, payload.jdText)
     ml_score = scores["overallScore"]
@@ -1547,7 +1582,7 @@ def get_mock_attempts(
         default=20,
         ge=1,
         le=100,
-        description="No. of results that will be returned (1–100)",
+        description="No. of results that will be returned (1-100)",
     ),
     offset: int = Query(
         default=0, ge=0, description="Number of results that has to be skipped"
@@ -1787,7 +1822,7 @@ async def generate_mock_question(
                 "You generate realistic technical and behavioral interview questions. "
                 "Return valid JSON only. Do not include markdown or explanations. "
                 'Use exactly this schema: {"question": "string"}. '
-                "Return only the question text — no numbering, no preamble, no tips."
+                "Return only the question text - no numbering, no preamble, no tips."
             ),
             user_prompt=(
                 f"Generate one realistic {payload.difficulty}-level interview question "
@@ -1801,7 +1836,6 @@ async def generate_mock_question(
         return GenerateQuestionResponse(question=question_text)
 
     except OpenRouterError:
-        # Curated fallback questions indexed by role + difficulty
         fallbacks: dict[str, dict[str, str]] = {
             "Frontend Developer": {
                 "Easy": "What is the difference between `null` and `undefined` in JavaScript?",
@@ -1816,7 +1850,7 @@ async def generate_mock_question(
             "Full Stack Developer": {
                 "Easy": "What happens between a user typing a URL and the page loading in the browser?",
                 "Medium": "How would you handle authentication state across a React SPA and a Node.js API?",
-                "Hard": "Design a real-time collaborative document editor — describe both the frontend state model and the backend sync strategy.",
+                "Hard": "Design a real-time collaborative document editor - describe both the frontend state model and the backend sync strategy.",
             },
             "Machine Learning Engineer": {
                 "Easy": "What is the difference between supervised and unsupervised learning?",
@@ -2035,7 +2069,6 @@ def delete_mentor_chat_session(
     if not session or session.user_id != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Delete messages
     db.execute(
         delete(MentorChatHistoryTable).where(
             MentorChatHistoryTable.session_id == session_id
@@ -2094,7 +2127,6 @@ async def post_mentor_chat_message(
     if not session or session.user_id != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Save user message
     now_dt = utc_now()
     user_msg_id = str(uuid4())
     user_entry = MentorChatHistoryTable(
@@ -2107,7 +2139,6 @@ async def post_mentor_chat_message(
     )
     db.add(user_entry)
 
-    # Generate title if it's still "New Chat" and this is the first message
     if session.title == "New Chat":
         words = payload.message.split()
         title = " ".join(words[:5]) + ("..." if len(words) > 5 else "")
@@ -2116,7 +2147,6 @@ async def post_mentor_chat_message(
     session.updated_at = now_dt
     db.commit()
 
-    # Fetch history for context
     history = db.scalars(
         select(MentorChatHistoryTable)
         .where(
@@ -2126,7 +2156,6 @@ async def post_mentor_chat_message(
         .order_by(MentorChatHistoryTable.created_at.asc())
     ).all()
 
-    # Fetch user profile
     profile_record = db.get(ProfileTable, user_id)
     profile_info = ""
     if profile_record:
@@ -2185,7 +2214,6 @@ async def post_mentor_chat_message(
             "Sorry, I am having trouble connecting to the AI brain right now."
         )
 
-    # Save AI message
     ai_dt = utc_now()
     ai_msg_id = str(uuid4())
     ai_entry = MentorChatHistoryTable(
@@ -2241,7 +2269,6 @@ async def post_anonymous_chat(
     if user.id != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Fetch user profile
     profile_record = db.get(ProfileTable, user_id)
     profile_info = ""
     if profile_record:

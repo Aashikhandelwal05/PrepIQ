@@ -107,7 +107,7 @@ function ProtectedRoute({ hydrated, user, logout, resourceErrorMessage, children
 function AppRoutes() {
   const { user, login, signup, logout, hydrated } = useAuth();
   const { profile, saveProfile, profileError } = useCareerProfile(user?.id);
-  const { sessions, addSession, sessionsError } = useInterviewSessions(user?.id);
+  const { sessions, addSession, deleteSession, sessionsError } = useInterviewSessions(user?.id);
   const { attempts, addAttempt, attemptsError } = useMockAttempts(user?.id);
   const { jobs, addJob, updateJob, deleteJob, jobsError } = useJobApplications(user?.id);
   const resourceErrorMessage = profileError ?? sessionsError ?? attemptsError ?? jobsError;
@@ -125,6 +125,7 @@ function AppRoutes() {
           sessions={sessions}
           jobs={jobs}
           onAddSession={addSession}
+          onDeleteSession={deleteSession}
           userId={user?.id || ""}
         /></ProtectedRoute>} />
         <Route path="/mock-interview" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><MockInterviewPage sessions={sessions} attempts={attempts} onAddAttempt={addAttempt} userId={user?.id || ""} /></ProtectedRoute>} />
