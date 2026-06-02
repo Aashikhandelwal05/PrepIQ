@@ -1,8 +1,18 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, Loader2, Search, Brain, Cpu, Upload } from "lucide-react";
+import { BookOpen, Loader2, Search, Brain, Cpu, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +31,7 @@ interface InterviewPrepPageProps {
   sessions: InterviewSession[];
   jobs: JobApplication[];
   onAddSession: (input: CreateInterviewSessionInput) => Promise<InterviewSession>;
+  onDeleteSession: (sessionId: string) => Promise<void>;
   userId: string;
 }
 
@@ -30,6 +41,7 @@ export default function InterviewPrepPage({
   sessions,
   jobs,
   onAddSession,
+  onDeleteSession,
 }: InterviewPrepPageProps) {
   const [showForm, setShowForm] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
@@ -43,6 +55,8 @@ export default function InterviewPrepPage({
   const [selectedJobId, setSelectedJobId] = useState("");
   const [uploadingJd, setUploadingJd] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const jdFileRef = useRef<HTMLInputElement>(null);
   const resumeFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -143,6 +157,24 @@ export default function InterviewPrepPage({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!sessionToDelete) return;
+    setDeleting(true);
+    try {
+      await onDeleteSession(sessionToDelete);
+      toast({ title: "Session deleted", description: "Prep session removed successfully." });
+      setSessionToDelete(null);
+    } catch (error) {
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -531,16 +563,25 @@ export default function InterviewPrepPage({
             {[...sessions].reverse().map((s) => (
               <div
                 key={s.id}
-                onClick={() => setActiveSession(s)}
-                className="rounded-xl bg-card border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors cursor-pointer"
+                className="rounded-xl bg-card border border-border p-4 flex items-center justify-between hover:border-primary/30 transition-colors"
               >
-                <div>
+                <div className="flex-1 cursor-pointer" onClick={() => setActiveSession(s)}>
                   <p className="font-medium text-foreground text-sm">{s.company} — {s.jobTitle}</p>
                   <p className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</p>
                 </div>
-                <Badge className={s.readinessScore >= 70 ? "bg-success/20 text-success" : "bg-warning/20 text-warning"}>
-                  {s.readinessScore}%
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className={s.readinessScore >= 70 ? "bg-success/20 text-success" : "bg-warning/20 text-warning"}>
+                    {s.readinessScore}%
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => { e.stopPropagation(); setSessionToDelete(s.id); }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -557,6 +598,27 @@ export default function InterviewPrepPage({
           </Button>
         </div>
       )}
+
+      <AlertDialog open={!!sessionToDelete} onOpenChange={(open) => { if (!open) setSessionToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Prep Session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this prep session and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={handleDeleteSession}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
