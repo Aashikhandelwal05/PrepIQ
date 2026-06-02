@@ -15,6 +15,7 @@ INJECTION_PATTERNS = [
     r"override\s+instructions",
 ]
 
+
 def sanitize_input(text: str) -> str:
     if not text:
         return ""

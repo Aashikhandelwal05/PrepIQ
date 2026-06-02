@@ -1,6 +1,14 @@
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+
 import pytest
-from app.main import evaluate_mock_attempt, generate_session_payload
-from app.sanitize import (
+from fastapi import HTTPException
+
+from backend.app.main import evaluate_mock_attempt, generate_session_payload
+from backend.app.sanitize import (
     ANSWER_MAX_LENGTH,
     JD_MAX_LENGTH,
     QUESTION_MAX_LENGTH,
@@ -8,7 +16,7 @@ from app.sanitize import (
     sanitize_and_wrap,
     sanitize_input,
 )
-from fastapi import HTTPException
+
 
 
 def test_sanitize_removes_prompt_injection_patterns():

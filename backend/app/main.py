@@ -14,7 +14,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import httpx
-from app.sanitize import (
+from .sanitize import (
     ANSWER_MAX_LENGTH,
     JD_MAX_LENGTH,
     QUESTION_MAX_LENGTH,
