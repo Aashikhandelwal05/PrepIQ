@@ -618,7 +618,10 @@ def stable_number(seed: str, minimum: int, maximum: int) -> int:
 
 
 async def call_openrouter_json(
-    system_prompt: str, user_prompt: str, client: httpx.AsyncClient | None = None
+    system_prompt: str = "",
+    user_prompt: str = "",
+    client: httpx.AsyncClient | None = None,
+    messages: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     if GEMINI_API_KEY:
         url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -643,14 +646,17 @@ async def call_openrouter_json(
         }
         provider_name = "OpenRouter"
 
-    payload = {
+    payload: dict[str, Any] = {
         "model": model,
         "response_format": {"type": "json_object"},
-        "messages": [
+    }
+    if messages is not None:
+        payload["messages"] = messages
+    else:
+        payload["messages"] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
-        ],
-    }
+        ]
 
     max_retries = 3
     body = None
@@ -2208,11 +2214,13 @@ async def post_mentor_chat_message(
         f"{profile_info}\n"
         "ALWAYS return JSON with a single key 'reply' containing your answer."
     )
-    messages_for_llm = [{"role": m.role, "content": m.content} for m in history]
+    messages_for_llm = [{"role": "system", "content": system_prompt}]
+    for m in history:
+        messages_for_llm.append({"role": m.role, "content": m.content})
 
     try:
         response_dict = await call_openrouter_json(
-            system_prompt=system_prompt, user_prompt=json.dumps(messages_for_llm)
+            messages=messages_for_llm
         )
         reply_content = response_dict.get(
             "reply", "I'm sorry, I couldn't formulate a proper reply."
@@ -2324,7 +2332,7 @@ async def post_anonymous_chat(
 
     try:
         response_dict = await call_openrouter_json(
-            system_prompt=system_prompt, user_prompt=json.dumps(payload.messages)
+            messages=[{"role": "system", "content": system_prompt}, *payload.messages]
         )
         reply_content = response_dict.get(
             "reply", "I'm sorry, I couldn't formulate a proper reply."
