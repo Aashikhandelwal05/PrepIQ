@@ -1236,7 +1236,6 @@ def require_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
-
     return user
 
 
