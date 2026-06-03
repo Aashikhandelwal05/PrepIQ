@@ -411,8 +411,8 @@ class InterviewSession(BaseModel):
 class CreateInterviewSessionRequest(BaseModel):
     jobTitle: str
     company: str
-    jdText: str = ""
-    resumeText: str = ""
+    jdText: str = Field(default="", max_length=15000)
+    resumeText: str = Field(default="", max_length=8000)
 
     @field_validator("jobTitle", "company", mode="after")
     @classmethod
@@ -1503,6 +1503,7 @@ def get_session(
     "/api/users/{user_id}/sessions",
     response_model=InterviewSession,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(validate_payload_size)],
 )
 async def create_session(
     user_id: str,
