@@ -12,3 +12,5 @@ pdfplumber
 python-docx
 python-multipart
 sentence-transformers
+pyarrow-hotfix>=0.7
+
