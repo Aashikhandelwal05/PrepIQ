@@ -10,6 +10,7 @@ import {
   Sun,
   Moon,
   SunMoon,
+  Bot,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { NavLink } from "@/components/NavLink";
@@ -33,6 +34,7 @@ const navItems = [
   { title: "Mock Interview", url: "/mock-interview", icon: MessageSquare },
   { title: "Job Tracker", url: "/job-tracker", icon: Briefcase },
   { title: "Progress", url: "/progress", icon: TrendingUp },
+  { title: "AI Mentor Chat", url: "/mentor-chat", icon: Bot },
 ];
 
 interface AppSidebarProps {
@@ -76,6 +78,25 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
       </div>
 
       <SidebarContent>
+        <div className="px-2 py-2 hidden md:block">
+          <button
+            onClick={() => {
+              window.dispatchEvent(
+                new KeyboardEvent("keydown", {
+                  key: "k",
+                  ctrlKey: true,
+                })
+              );
+            }}
+            className="w-full flex items-center justify-between rounded-xl border border-border/60 bg-background/40 px-4 py-3 text-sm text-muted-foreground transition-all duration-200 hover:bg-white/5 hover:border-white/10 hover:text-foreground"
+          >
+            <span>Search pages...</span>
+
+            <kbd className="rounded border border-border bg-muted px-2 py-0.5 text-xs">
+              Ctrl K
+            </kbd>
+          </button>
+        </div>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

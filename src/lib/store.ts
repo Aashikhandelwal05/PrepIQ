@@ -7,6 +7,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  anonymousMode?: boolean;
 }
 
 export interface AuthSession {
@@ -244,7 +245,16 @@ export function useAuth() {
     setSession(null);
   }, []);
 
-  return { user: session?.user ?? null, login, signup, logout, hydrated };
+  const updateUser = useCallback((updatedUser: User) => {
+    setSessionState((prev) => {
+      if (!prev) return null;
+      const nextSession = { ...prev, user: updatedUser };
+      setSession(nextSession);
+      return nextSession;
+    });
+  }, []);
+
+  return { user: session?.user ?? null, login, signup, logout, hydrated, updateUser };
 }
 
 export function useCareerProfile(userId: string | undefined) {
@@ -303,9 +313,26 @@ export function useInterviewSessions(userId: string | undefined) {
     return addSessionMutation.mutateAsync(input);
   }, [addSessionMutation]);
 
+  const deleteSessionMutation = useMutation({
+    mutationFn: (sessionId: string) => {
+      if (!userId) throw new Error("User is not authenticated");
+      return apiRequest<void>(`/api/users/${userId}/sessions/${sessionId}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["interviewSessions", userId] });
+    },
+  });
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    return deleteSessionMutation.mutateAsync(sessionId);
+  }, [deleteSessionMutation]);
+
   return {
     sessions: sessionsQuery.data ?? [],
     addSession,
+    deleteSession,
     sessionsError: sessionsQuery.error instanceof Error ? sessionsQuery.error.message : null,
     sessionsLoading: sessionsQuery.isLoading,
   };

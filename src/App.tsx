@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth, useCareerProfile, useInterviewSessions, useMockAttempts, useJobApplications } from "@/lib/store";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import { CommandPalette } from "./components/CommandPalette";
 
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -20,6 +21,7 @@ const InterviewPrepPage = lazy(() => import("./pages/InterviewPrepPage"));
 const MockInterviewPage = lazy(() => import("./pages/MockInterviewPage"));
 const JobTrackerPage = lazy(() => import("./pages/JobTrackerPage"));
 const ProgressPage = lazy(() => import("./pages/ProgressPage"));
+const MentorChatPage = lazy(() => import("./pages/MentorChatPage"));
 
 const queryClient = new QueryClient();
 
@@ -105,7 +107,7 @@ function ProtectedRoute({ hydrated, user, logout, resourceErrorMessage, children
 function AppRoutes() {
   const { user, login, signup, logout, hydrated } = useAuth();
   const { profile, saveProfile, profileError } = useCareerProfile(user?.id);
-  const { sessions, addSession, sessionsError } = useInterviewSessions(user?.id);
+  const { sessions, addSession, deleteSession, sessionsError } = useInterviewSessions(user?.id);
   const { attempts, addAttempt, attemptsError } = useMockAttempts(user?.id);
   const { jobs, addJob, updateJob, deleteJob, jobsError } = useJobApplications(user?.id);
   const resourceErrorMessage = profileError ?? sessionsError ?? attemptsError ?? jobsError;
@@ -123,11 +125,13 @@ function AppRoutes() {
           sessions={sessions}
           jobs={jobs}
           onAddSession={addSession}
+          onDeleteSession={deleteSession}
           userId={user?.id || ""}
         /></ProtectedRoute>} />
         <Route path="/mock-interview" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><MockInterviewPage sessions={sessions} attempts={attempts} onAddAttempt={addAttempt} userId={user?.id || ""} /></ProtectedRoute>} />
         <Route path="/job-tracker" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><JobTrackerPage jobs={jobs} sessions={sessions} onAddJob={addJob} onUpdateJob={updateJob} onDeleteJob={deleteJob} userId={user?.id || ""} /></ProtectedRoute>} />
         <Route path="/progress" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><ProgressPage mocks={attempts} sessions={sessions} /></ProtectedRoute>} />
+        <Route path="/mentor-chat" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><MentorChatPage user={user!} /></ProtectedRoute>} />
         <Route
           path="/privacy-policy"
           element={
@@ -157,6 +161,7 @@ const App = () => (
         <Toaster />
         <ErrorBoundary>
           <BrowserRouter>
+            <CommandPalette />
             <AppRoutes />
           </BrowserRouter>
         </ErrorBoundary>

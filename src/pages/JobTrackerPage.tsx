@@ -1,12 +1,21 @@
 import { useEffect, useState, useRef } from "react";
+import {
+  startOfWeek,
+  addWeeks,
+  subWeeks,
+  format,
+  isSameDay,
+} from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Briefcase,
   Plus,
   LayoutGrid,
   Table as TableIcon,
-  Check,
-  ChevronsUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,6 +265,92 @@ function SortableCard({ job, onClick, isOverdue, prepScore }: { job: JobApplicat
   );
 }
 // ------------------------------
+function UpcomingActionsTimeline({
+  jobs,
+  onDateClick,
+}: {
+  jobs: JobApplication[];
+  onDateClick: (date: string) => void;
+}) {
+  const [weekStart, setWeekStart] = useState(
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(weekStart);
+    date.setDate(date.getDate() + i);
+    return date;
+  });
+
+  const hasAction = (date: Date) => {
+    return jobs.some((job) => {
+      if (!job.nextActionDate) return false;
+
+      const actionDate = new Date(job.nextActionDate);
+
+      return isSameDay(actionDate, date);
+    });
+  };
+
+  return (
+    <div className="rounded-xl bg-card border border-border p-4 h-full flex flex-col justify-center">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold">
+          Upcoming Actions
+        </h3>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() =>
+              setWeekStart(subWeeks(weekStart, 1))
+            }
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() =>
+              setWeekStart(addWeeks(weekStart, 1))
+            }
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <h4 className="text-center font-semibold mb-4">
+        {format(days[0], "d MMM")} - {format(days[6], "d MMM yyyy")}
+      </h4>
+
+      <div className="grid grid-cols-7 gap-2 text-center">
+        {days.map((date) => (
+          <div key={date.toISOString()}>
+            <p className="text-xs text-muted-foreground mb-2">
+              {format(date, "EEE")}
+            </p>
+
+            <button
+              onClick={() =>
+                onDateClick(format(date, "yyyy-MM-dd"))
+              }
+              className={`
+                w-10 h-10 rounded-full
+                flex items-center justify-center
+                mx-auto transition-all
+                ${hasAction(date)
+                  ? "border-2 border-red-500 text-red-500"
+                  : "hover:bg-secondary"
+                }
+              `}
+            >
+              {format(date, "d")}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface JobTrackerPageProps {
   jobs: JobApplication[];
@@ -274,6 +369,8 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
   const [savingDraft, setSavingDraft] = useState(false);
   const [deletingJob, setDeletingJob] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [form, setForm] = useState({ companyName: "", jobTitle: "", jobUrl: "", status: "Applied" as Status });
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -323,6 +420,22 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
   const [localJobs, setLocalJobs] = useState<JobApplication[]>(jobs);
   const localJobsRef = useRef(jobs);
   const [activeJob, setActiveJob] = useState<JobApplication | null>(null);
+
+  // Search & filter state (issue #188)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<Status | "All">("All");
+
+  const filteredJobs = localJobs.filter((j) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch =
+      !term ||
+      j.companyName.toLowerCase().includes(term) ||
+      j.jobTitle.toLowerCase().includes(term);
+    const matchesStatus = statusFilter === "All" || j.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const hasActiveFilter = searchTerm !== "" || statusFilter !== "All";
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -542,7 +655,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
 
   return (
     <div className="space-y-6 animate-slide-up">
-      <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 border-b border-border/40 pb-4 pt-2 space-y-6">
+      <div className="bg-background border-b border-border/40 pb-4 pt-2 space-y-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Job Tracker</h1>
@@ -551,7 +664,46 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Search bar (issue #188) */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                id="job-tracker-search"
+                placeholder="Search company or role…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 h-8 w-44 text-xs bg-secondary border-border"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            {/* Status filter */}
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status | "All")}>
+              <SelectTrigger id="job-tracker-status-filter" className="h-8 w-32 text-xs bg-secondary border-border">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All statuses</SelectItem>
+                {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {hasActiveFilter && (
+              <button
+                onClick={() => { setSearchTerm(""); setStatusFilter("All"); }}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                aria-label="Clear all filters"
+              >
+                Clear
+              </button>
+            )}
             <div className="flex bg-secondary rounded-lg p-0.5">
               <button onClick={() => setView("kanban")} className={`px-3 py-1.5 rounded-md text-sm transition-colors ${view === "kanban" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
                 <LayoutGrid className="w-4 h-4" />
@@ -652,23 +804,72 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-xl bg-card border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{localJobs.length}</p>
-          <p className="text-xs text-muted-foreground">Total</p>
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_360px] gap-4 items-stretch">
+
+        {/* Stats */}
+        <div>
+          <div className="grid grid-cols-2 gap-3">
+
+            <div className="rounded-xl bg-card border border-border py-5 px-4 text-center">
+              <p className="text-2xl font-bold text-foreground">
+                {localJobs.length}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Total
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-card border border-border py-5 px-4 text-center">
+              <p className="text-2xl font-bold text-foreground">
+                {active.length}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Active
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-card border border-border py-5 px-4 text-center">
+              <p className="text-2xl font-bold text-foreground">
+                {localJobs.length
+                  ? Math.round(
+                    (interviews.length / localJobs.length) * 100
+                  )
+                  : 0}
+                %
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Interview Rate
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-card border border-border py-5 px-4 text-center">
+              <p className="text-2xl font-bold text-foreground">
+                {localJobs.length
+                  ? Math.round(
+                    (offers.length / localJobs.length) * 100
+                  )
+                  : 0}
+                %
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Offer Rate
+              </p>
+            </div>
+
+          </div>
         </div>
-        <div className="rounded-xl bg-card border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{active.length}</p>
-          <p className="text-xs text-muted-foreground">Active</p>
+
+        {/* Calendar */}
+        <div className="h-full">
+          <UpcomingActionsTimeline
+            jobs={localJobs}
+            onDateClick={(date) => {
+              setSelectedDate(date);
+              setShowCalendarModal(true);
+            }}
+          />
         </div>
-        <div className="rounded-xl bg-card border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{localJobs.length ? Math.round((interviews.length / localJobs.length) * 100) : 0}%</p>
-          <p className="text-xs text-muted-foreground">Interview Rate</p>
-        </div>
-        <div className="rounded-xl bg-card border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{localJobs.length ? Math.round((offers.length / localJobs.length) * 100) : 0}%</p>
-          <p className="text-xs text-muted-foreground">Offer Rate</p>
-        </div>
+
       </div>
 
       <Sheet open={!!selectedJob} onOpenChange={(open) => !open && setSelectedJob(null)}>
@@ -778,7 +979,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
         >
           <div className="flex gap-4 overflow-x-auto pb-4 max-h-[calc(100vh-320px)] [scrollbar-width:thin] [scrollbar-color:hsl(var(--primary))_transparent] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-secondary/30 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/70 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-primary">
             {kanbanColumns.map((status) => {
-              const colJobs = localJobs.filter((j) => j.status === status);
+              const colJobs = filteredJobs.filter((j) => j.status === status);
               return (
                 <SortableColumn key={status} id={status}>
                   <div className="flex items-center gap-2 mb-3">
@@ -838,12 +1039,14 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
                 </tr>
               </thead>
               <tbody>
-                {localJobs.length === 0 ? (
+                {filteredJobs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-muted-foreground">No applications yet</td>
+                    <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                      {hasActiveFilter ? "No applications match your filters" : "No applications yet"}
+                    </td>
                   </tr>
                 ) : (
-                  localJobs.map((job) => (
+                  filteredJobs.map((job) => (
                     <tr key={job.id} className="border-b border-border/50 hover:bg-secondary/20 cursor-pointer" onClick={() => setSelectedJob(job)}>
                       <td className="py-3 px-4 font-medium text-foreground max-w-[220px] truncate">
                         <div className="flex items-center gap-2">
@@ -894,6 +1097,67 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
           </Button>
         </div>
       )}
+
+      <Dialog
+        open={showCalendarModal}
+        onOpenChange={setShowCalendarModal}
+      >
+        <DialogContent
+          className="
+    w-[92vw]
+    max-w-md
+    max-h-[80vh]
+    p-4
+    rounded-2xl
+  "
+        >
+          <DialogHeader>
+            <DialogTitle>
+              Scheduled Actions
+            </DialogTitle>
+          </DialogHeader>
+
+          {localJobs.filter(
+            (j) => j.nextActionDate === selectedDate
+          ).length === 0 ? (
+            <p>No scheduled actions for this date.</p>
+          ) : (
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2
+                [scrollbar-width:thin]
+                [scrollbar-color:hsl(var(--primary))_transparent]
+                [&::-webkit-scrollbar]:w-2
+                [&::-webkit-scrollbar-track]:bg-secondary/30
+                [&::-webkit-scrollbar-track]:rounded-full
+                [&::-webkit-scrollbar-thumb]:bg-primary/70
+                [&::-webkit-scrollbar-thumb]:rounded-full
+                hover:[&::-webkit-scrollbar-thumb]:bg-primary">
+              {localJobs
+                .filter(
+                  (j) =>
+                    j.nextActionDate === selectedDate
+                )
+                .map((job) => (
+                  <div
+                    key={job.id}
+                    className="border rounded-lg p-3"
+                  >
+                    <p className="font-medium">
+                      {job.companyName}
+                    </p>
+
+                    <p className="text-sm">
+                      {job.jobTitle}
+                    </p>
+
+                    <p className="text-sm text-primary">
+                      {job.nextAction}
+                    </p>
+                  </div>
+                ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
         <AlertDialogContent>

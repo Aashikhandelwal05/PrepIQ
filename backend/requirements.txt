@@ -13,3 +13,4 @@ python-docx
 python-multipart
 sentence-transformers
 slowapi
+pyarrow-hotfix>=0.7
