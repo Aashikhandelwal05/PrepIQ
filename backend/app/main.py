@@ -26,7 +26,8 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-from slowapi import Limiter
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from sqlalchemy import (
@@ -1068,6 +1069,10 @@ def validate_payload_size(request: Request) -> None:
 
 app = FastAPI(title="PrepIQ Backend", version="2.0.0")
 app.state.limiter = limiter
+app.add_exception_handler(
+    RateLimitExceeded,
+    _rate_limit_exceeded_handler,
+)
 app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
