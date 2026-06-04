@@ -177,6 +177,8 @@ export default function MockInterviewPage({
   // Existing state
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
+  const latestAnswerRef = useRef(answer);
+  useEffect(() => { latestAnswerRef.current = answer; }, [answer]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MockAttempt | null>(null);
   const [showModel, setShowModel] = useState(false);
@@ -275,7 +277,7 @@ export default function MockInterviewPage({
       const attempt = await onAddAttempt({
         sessionId: selectedSession !== "custom" ? selectedSession : "",
         question,
-        userAnswer: answer,
+        userAnswer: latestAnswerRef.current,
       });
       setResult(attempt);
       toast({ title: "Feedback ready!", description: `You scored ${attempt.aiScore}/10` });
@@ -288,7 +290,8 @@ export default function MockInterviewPage({
     } finally {
       setLoading(false);
     }
-  }, [answer, onAddAttempt, question, selectedSession, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onAddAttempt, question, selectedSession, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
