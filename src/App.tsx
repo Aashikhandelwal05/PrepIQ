@@ -6,10 +6,17 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
-import { useAuth, useCareerProfile, useInterviewSessions, useMockAttempts, useJobApplications } from "@/lib/store";
+import {
+  useAuth,
+  useCareerProfile,
+  useInterviewSessions,
+  useMockAttempts,
+  useJobApplications,
+} from "@/lib/store";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import { CommandPalette } from "./components/CommandPalette";
+import ContactPage from "./pages/ContactPage";
 
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -30,7 +37,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  ErrorBoundaryState
+> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -54,10 +64,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
       return (
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
           <div className="max-w-md text-center space-y-4">
-            <h1 className="text-2xl font-bold text-foreground">Something went wrong</h1>
-            <p className="text-sm text-muted-foreground">{this.state.error?.message || "An unexpected error occurred."}</p>
+            <h1 className="text-2xl font-bold text-foreground">
+              Something went wrong
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {this.state.error?.message || "An unexpected error occurred."}
+            </p>
             <button
-              onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = "/dashboard"; }}
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                window.location.href = "/dashboard";
+              }}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 transition-opacity"
             >
               Go to Dashboard
@@ -87,7 +104,13 @@ interface ProtectedRouteProps {
   children: ReactNode;
 }
 
-function ProtectedRoute({ hydrated, user, logout, resourceErrorMessage, children }: ProtectedRouteProps) {
+function ProtectedRoute({
+  hydrated,
+  user,
+  logout,
+  resourceErrorMessage,
+  children,
+}: ProtectedRouteProps) {
   if (!hydrated) return <RouteFallback />;
   if (!user) return <Navigate to="/login" replace />;
   return (
@@ -107,31 +130,174 @@ function ProtectedRoute({ hydrated, user, logout, resourceErrorMessage, children
 function AppRoutes() {
   const { user, login, signup, logout, hydrated } = useAuth();
   const { profile, saveProfile, profileError } = useCareerProfile(user?.id);
-  const { sessions, addSession, deleteSession, sessionsError } = useInterviewSessions(user?.id);
+  const { sessions, addSession, deleteSession, sessionsError } =
+    useInterviewSessions(user?.id);
   const { attempts, addAttempt, attemptsError } = useMockAttempts(user?.id);
-  const { jobs, addJob, updateJob, deleteJob, jobsError } = useJobApplications(user?.id);
-  const resourceErrorMessage = profileError ?? sessionsError ?? attemptsError ?? jobsError;
+  const { jobs, addJob, updateJob, deleteJob, jobsError } = useJobApplications(
+    user?.id,
+  );
+  const resourceErrorMessage =
+    profileError ?? sessionsError ?? attemptsError ?? jobsError;
 
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/" element={<Index />} />
-        <Route path="/login" element={!hydrated ? <RouteFallback /> : user ? <Navigate to="/dashboard" replace /> : <AuthPage mode="login" onLogin={login} onSignup={signup} />} />
-        <Route path="/signup" element={!hydrated ? <RouteFallback /> : user ? <Navigate to="/dashboard" replace /> : <AuthPage mode="signup" onLogin={login} onSignup={signup} />} />
-        <Route path="/onboarding" element={!hydrated ? <RouteFallback /> : user ? <OnboardingPage user={user} profile={profile} onSave={saveProfile} /> : <Navigate to="/login" replace />} />
-        <Route path="/dashboard" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><DashboardPage user={user!} profile={profile} sessions={sessions} mocks={attempts} jobs={jobs} /></ProtectedRoute>} />
-        <Route path="/career-dna" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><CareerDNAPage user={user!} profile={profile} /></ProtectedRoute>} />
-        <Route path="/interview-prep" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><InterviewPrepPage
-          sessions={sessions}
-          jobs={jobs}
-          onAddSession={addSession}
-          onDeleteSession={deleteSession}
-          userId={user?.id || ""}
-        /></ProtectedRoute>} />
-        <Route path="/mock-interview" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><MockInterviewPage sessions={sessions} attempts={attempts} onAddAttempt={addAttempt} userId={user?.id || ""} /></ProtectedRoute>} />
-        <Route path="/job-tracker" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><JobTrackerPage jobs={jobs} sessions={sessions} onAddJob={addJob} onUpdateJob={updateJob} onDeleteJob={deleteJob} userId={user?.id || ""} /></ProtectedRoute>} />
-        <Route path="/progress" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><ProgressPage mocks={attempts} sessions={sessions} /></ProtectedRoute>} />
-        <Route path="/mentor-chat" element={<ProtectedRoute hydrated={hydrated} user={user} logout={logout} resourceErrorMessage={resourceErrorMessage}><MentorChatPage user={user!} /></ProtectedRoute>} />
+        <Route
+          path="/login"
+          element={
+            !hydrated ? (
+              <RouteFallback />
+            ) : user ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <AuthPage mode="login" onLogin={login} onSignup={signup} />
+            )
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            !hydrated ? (
+              <RouteFallback />
+            ) : user ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <AuthPage mode="signup" onLogin={login} onSignup={signup} />
+            )
+          }
+        />
+        <Route
+          path="/onboarding"
+          element={
+            !hydrated ? (
+              <RouteFallback />
+            ) : user ? (
+              <OnboardingPage
+                user={user}
+                profile={profile}
+                onSave={saveProfile}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute
+              hydrated={hydrated}
+              user={user}
+              logout={logout}
+              resourceErrorMessage={resourceErrorMessage}
+            >
+              <DashboardPage
+                user={user!}
+                profile={profile}
+                sessions={sessions}
+                mocks={attempts}
+                jobs={jobs}
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/career-dna"
+          element={
+            <ProtectedRoute
+              hydrated={hydrated}
+              user={user}
+              logout={logout}
+              resourceErrorMessage={resourceErrorMessage}
+            >
+              <CareerDNAPage user={user!} profile={profile} />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/interview-prep"
+          element={
+            <ProtectedRoute
+              hydrated={hydrated}
+              user={user}
+              logout={logout}
+              resourceErrorMessage={resourceErrorMessage}
+            >
+              <InterviewPrepPage
+                sessions={sessions}
+                jobs={jobs}
+                onAddSession={addSession}
+                onDeleteSession={deleteSession}
+                userId={user?.id || ""}
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mock-interview"
+          element={
+            <ProtectedRoute
+              hydrated={hydrated}
+              user={user}
+              logout={logout}
+              resourceErrorMessage={resourceErrorMessage}
+            >
+              <MockInterviewPage
+                sessions={sessions}
+                attempts={attempts}
+                onAddAttempt={addAttempt}
+                userId={user?.id || ""}
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/job-tracker"
+          element={
+            <ProtectedRoute
+              hydrated={hydrated}
+              user={user}
+              logout={logout}
+              resourceErrorMessage={resourceErrorMessage}
+            >
+              <JobTrackerPage
+                jobs={jobs}
+                sessions={sessions}
+                onAddJob={addJob}
+                onUpdateJob={updateJob}
+                onDeleteJob={deleteJob}
+                userId={user?.id || ""}
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/progress"
+          element={
+            <ProtectedRoute
+              hydrated={hydrated}
+              user={user}
+              logout={logout}
+              resourceErrorMessage={resourceErrorMessage}
+            >
+              <ProgressPage mocks={attempts} sessions={sessions} />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mentor-chat"
+          element={
+            <ProtectedRoute
+              hydrated={hydrated}
+              user={user}
+              logout={logout}
+              resourceErrorMessage={resourceErrorMessage}
+            >
+              <MentorChatPage user={user!} />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/privacy-policy"
           element={
@@ -148,6 +314,14 @@ function AppRoutes() {
             </AppLayout>
           }
         />
+        <Route
+          path="/contact"
+          element={
+            <AppLayout onLogout={logout}>
+              <ContactPage />
+            </AppLayout>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
@@ -156,7 +330,12 @@ function AppRoutes() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
       <TooltipProvider>
         <Toaster />
         <ErrorBoundary>

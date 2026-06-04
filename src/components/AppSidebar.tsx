@@ -10,6 +10,7 @@ import {
   Sun,
   Moon,
   SunMoon,
+  Mail,
   Bot,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -35,6 +36,7 @@ const navItems = [
   { title: "Job Tracker", url: "/job-tracker", icon: Briefcase },
   { title: "Progress", url: "/progress", icon: TrendingUp },
   { title: "AI Mentor Chat", url: "/mentor-chat", icon: Bot },
+  { title: "Contact Us", url: "/contact", icon: Mail },
 ];
 
 interface AppSidebarProps {
@@ -85,7 +87,7 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
                 new KeyboardEvent("keydown", {
                   key: "k",
                   ctrlKey: true,
-                })
+                }),
               );
             }}
             className="w-full flex items-center justify-between rounded-xl border border-border/60 bg-background/40 px-4 py-3 text-sm text-muted-foreground transition-all duration-200 hover:bg-white/5 hover:border-white/10 hover:text-foreground"
@@ -128,10 +130,8 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
 
       <SidebarFooter className="border-t border-border p-2">
         <SidebarMenu>
-
           {!collapsed && (
             <div className="px-3 pb-3 mb-2 border-b border-border/60 flex flex-col gap-2">
-
               <NavLink
                 to="/privacy-policy"
                 className="text-[12px] text-muted-foreground hover:text-primary underline underline-offset-4 transition-colors"
@@ -145,7 +145,6 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
               >
                 Terms & Conditions
               </NavLink>
-
             </div>
           )}
           <SidebarMenuItem>

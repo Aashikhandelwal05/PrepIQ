@@ -42,6 +42,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sess
 
 from .ml import analyze_confidence, compute_match_score, extract_skills
 
+from pydantic import BaseModel
+
 logger = logging.getLogger(__name__)
 
 
@@ -1231,7 +1233,11 @@ def validate_payload_size(request: Request) -> None:
                 detail="Request entity too large",
             )
 
-
+class ContactRequest(BaseModel):
+    name: str
+    email: str
+    subject: str
+    message: str
 app = FastAPI(title="PrepIQ Backend", version="2.0.0")
 
 app.add_middleware(
@@ -1323,6 +1329,12 @@ async def shutdown() -> None:
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+@app.post("/api/contact")
+async def contact(payload: ContactRequest):
+    return {
+        "success": True,
+        "message": "Contact request received"
+    }
 
 
 @app.post("/api/auth/login", response_model=AuthResponse)
