@@ -612,7 +612,10 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
       } else if (isOverColumn) {
         if (activeJobObj.status !== overId) {
           activeJobObj.status = overId as Status;
-          return arrayMove(newJobs, activeIndex, newJobs.length - 1);
+          const lastInColumn = newJobs.reduce((last, j, i) =>
+            j.status === overId ? i : last, -1);
+          const targetIndex = lastInColumn >= 0 ? lastInColumn : activeIndex;
+          return arrayMove(newJobs, activeIndex, targetIndex);
         }
       }
       localJobsRef.current = newJobs;
