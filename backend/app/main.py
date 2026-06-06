@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import secrets
+import resend
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 from uuid import uuid4
@@ -62,7 +63,6 @@ def load_local_env() -> None:
 
 
 load_local_env()
-
 # Environments where SQLite and insecure defaults are explicitly permitted.
 # Any value not in this set is treated as production-like and requires real config.
 _LOCAL_ENVS = {"development", "dev", "test", "local"}
@@ -113,6 +113,11 @@ OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "PrepIQ")
 OPENROUTER_TIMEOUT_SECONDS = float(os.getenv("OPENROUTER_TIMEOUT_SECONDS", "30"))
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "")
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 CORS_ORIGINS = [
     origin.strip()
@@ -1331,10 +1336,48 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 @app.post("/api/contact")
 async def contact(payload: ContactRequest):
-    return {
-        "success": True,
-        "message": "Contact request received"
-    }
+    try:
+        if not RESEND_API_KEY:
+            raise HTTPException(
+                status_code=500,
+                detail="RESEND_API_KEY is not configured"
+            )
+
+        if not CONTACT_EMAIL:
+            raise HTTPException(
+                status_code=500,
+                detail="CONTACT_EMAIL is not configured"
+            )
+
+        resend.Emails.send(
+            {
+                "from": "onboarding@resend.dev",
+                "to": [CONTACT_EMAIL],
+                "subject": f"PrepIQ Contact: {payload.subject}",
+                "reply_to": payload.email,
+                "html": f"""
+                <h2>New Contact Form Submission</h2>
+
+                <p><strong>Name:</strong> {payload.name}</p>
+                <p><strong>Email:</strong> {payload.email}</p>
+                <p><strong>Subject:</strong> {payload.subject}</p>
+
+                <p><strong>Message:</strong></p>
+                <p>{payload.message}</p>
+                """,
+            }
+        )
+
+        return {
+            "success": True,
+            "message": "Message sent successfully"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send email: {str(e)}"
+        )
 
 
 @app.post("/api/auth/login", response_model=AuthResponse)
