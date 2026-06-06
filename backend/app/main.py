@@ -454,9 +454,8 @@ class MockAttempt(BaseModel):
 
 class CreateMockAttemptRequest(BaseModel):
     sessionId: str = ""
-    question: str
-    userAnswer: str
-
+    question: str = Field(max_length=2000)
+    userAnswer: str = Field(max_length=10000)
 
 class PaginatedMockAttempts(BaseModel):
     items: list[MockAttempt]
@@ -1246,14 +1245,13 @@ def require_current_user(
     return user
 
 
-def validate_payload_size(request: Request) -> None:
-    if "content-length" in request.headers:
-        length = int(request.headers["content-length"])
-        if length > 5242880:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="Request entity too large",
-            )
+async def validate_payload_size(request: Request) -> None:
+    body = await request.body()
+    if len(body) > 5242880:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Request entity too large",
+        )
 
 
 app = FastAPI(title="PrepIQ Backend", version="2.0.0")
@@ -1651,6 +1649,7 @@ def get_mock_attempts(
     "/api/users/{user_id}/mocks",
     response_model=MockAttempt,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(validate_payload_size)],
 )
 async def create_mock_attempt(
     user_id: str,
@@ -1833,6 +1832,7 @@ class GenerateQuestionResponse(BaseModel):
 @app.post(
     "/api/users/{user_id}/mock/generate-question",
     response_model=GenerateQuestionResponse,
+    dependencies=[Depends(validate_payload_size)],
 )
 async def generate_mock_question(
     user_id: str,
@@ -1999,7 +1999,7 @@ class MentorChatMessage(BaseModel):
 
 
 class MentorChatRequest(BaseModel):
-    message: str
+    message: str = Field(max_length=4000)
 
 
 @app.get(
@@ -2146,7 +2146,10 @@ def get_mentor_chat_messages(
     ]
 
 
-@app.post("/api/users/{user_id}/mentor-chat/sessions/{session_id}/messages")
+@app.post(
+    "/api/users/{user_id}/mentor-chat/sessions/{session_id}/messages",
+    dependencies=[Depends(validate_payload_size)],
+)
 async def post_mentor_chat_message(
     user_id: str,
     session_id: str,
@@ -2295,7 +2298,10 @@ class AnonymousChatRequest(BaseModel):
     messages: list[dict[str, str]]
 
 
-@app.post("/api/users/{user_id}/mentor-chat/anonymous")
+@app.post(
+    "/api/users/{user_id}/mentor-chat/anonymous",
+    dependencies=[Depends(validate_payload_size)],
+)
 async def post_anonymous_chat(
     user_id: str,
     payload: AnonymousChatRequest,
