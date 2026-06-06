@@ -765,18 +765,55 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
                   <div>
                     <Label>Job Title</Label>
 
-                    <Input
-                      list="job-roles"
-                      placeholder="e.g. Software Engineer"
-                      value={form.jobTitle}
-                      onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
-                      className="mt-1 bg-secondary/50"
-                    />
-                    <datalist id="job-roles">
-                      {JOB_ROLES.map((role) => (
-                        <option key={role} value={role} />
-                      ))}
-                    </datalist>
+                    <Popover open={jobRoleOpen} onOpenChange={setJobRoleOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={jobRoleOpen}
+                          className="w-full mt-1 justify-between bg-secondary/50"
+                        >
+                          {form.jobTitle || "Select a job title"}
+                        </Button>
+                      </PopoverTrigger>
+
+                      <PopoverContent
+                        align="start"
+                        side="bottom"
+                        sideOffset={4}
+                        className="w-[var(--radix-popover-trigger-width)] p-0"
+                        onWheel={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        <Command>
+                          <CommandInput placeholder="Search job title..." />
+
+                          <CommandEmpty>
+                            No job title found.
+                          </CommandEmpty>
+
+                          <CommandGroup className="max-h-64 overflow-y-auto">
+                            {JOB_ROLES.map((role) => (
+                              <CommandItem
+                                key={role}
+                                value={role}
+                                onSelect={() => {
+                                  setForm({
+                                    ...form,
+                                    jobTitle: role,
+                                  });
+
+                                  setJobRoleOpen(false);
+                                }}
+                              >
+                                {role}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div>
                     <Label>Job URL</Label>
