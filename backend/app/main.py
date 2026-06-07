@@ -220,6 +220,17 @@ class JobApplicationTable(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class ApplicationActivityTable(Base):
+    __tablename__ = "application_activities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    application_id: Mapped[str] = mapped_column(String(36), index=True)
+    old_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(32))
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class MentorChatSessionTable(Base):
     __tablename__ = "mentor_chat_sessions"
 
@@ -527,6 +538,20 @@ class UpdateJobApplicationRequest(BaseModel):
     linkedPrepSessionId: str | None = None
 
 
+class ApplicationActivity(BaseModel):
+    id: str
+    applicationId: str
+    oldStatus: str | None
+    newStatus: str
+    note: str | None
+    createdAt: str
+
+
+class PaginatedActivities(BaseModel):
+    items: list[ApplicationActivity]
+    total: int
+
+
 def user_from_table(user: UserTable) -> User:
     return User(
         id=user.id,
@@ -608,6 +633,17 @@ def job_from_table(job: JobApplicationTable) -> JobApplication:
         linkedPrepSessionId=job.linked_prep_session_id,
         createdAt=job.created_at.isoformat(),
         updatedAt=job.updated_at.isoformat(),
+    )
+
+
+def activity_from_table(act: ApplicationActivityTable) -> ApplicationActivity:
+    return ApplicationActivity(
+        id=act.id,
+        applicationId=act.application_id,
+        oldStatus=act.old_status,
+        newStatus=act.new_status,
+        note=act.note,
+        createdAt=act.created_at.isoformat(),
     )
 
 
@@ -1753,10 +1789,29 @@ def update_job(
         "nextActionDate": "next_action_date",
         "linkedPrepSessionId": "linked_prep_session_id",
     }
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    old_status = job.status
+    for key, value in updates.items():
         setattr(job, field_map[key], value)
     job.updated_at = utc_now()
     db.commit()
+
+    # Auto-create activity record when status changes
+    if "status" in updates and updates["status"] != old_status:
+        note = updates.get("notes")
+        note = None if note is None or not note.strip() else note.strip()
+        now = utc_now()
+        activity = ApplicationActivityTable(
+            id=str(uuid4()),
+            application_id=job.id,
+            old_status=old_status,
+            new_status=job.status,
+            note=note,
+            created_at=now,
+        )
+        db.add(activity)
+        db.commit()
+
     return job_from_table(job)
 
 
@@ -1785,6 +1840,49 @@ def delete_job(
     db.delete(job)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get(
+    "/api/users/{user_id}/jobs/{job_id}/activity",
+    response_model=PaginatedActivities,
+)
+def get_job_activities(
+    user_id: str,
+    job_id: str,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> PaginatedActivities:
+    job = db.execute(
+        select(JobApplicationTable).where(
+            JobApplicationTable.id == job_id,
+            JobApplicationTable.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found",
+        )
+
+    total_q = select(func.count()).where(
+        ApplicationActivityTable.application_id == job_id
+    )
+    total = db.execute(total_q).scalar() or 0
+
+    rows = db.execute(
+        select(ApplicationActivityTable)
+        .where(ApplicationActivityTable.application_id == job_id)
+        .order_by(ApplicationActivityTable.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    ).scalars()
+
+    return PaginatedActivities(
+        items=[activity_from_table(row) for row in rows],
+        total=total,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2332,7 +2430,7 @@ async def post_anonymous_chat(
 
     try:
         response_dict = await call_openrouter_json(
-            messages=[{"role": "system", "content": system_prompt}, *payload.messages]
+            system_prompt=system_prompt, user_prompt=json.dumps(payload.messages)
         )
         reply_content = response_dict.get(
             "reply", "I'm sorry, I couldn't formulate a proper reply."

@@ -156,6 +156,20 @@ export interface CreateJobApplicationInput {
   status: JobApplication["status"];
 }
 
+export interface ApplicationActivity {
+  id: string;
+  applicationId: string;
+  oldStatus: string | null;
+  newStatus: string;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface PaginatedActivities {
+  items: ApplicationActivity[];
+  total: number;
+}
+
 function getSession(): AuthSession | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
@@ -434,5 +448,13 @@ export function useJobApplications(userId: string | undefined) {
 
   const jobs = jobsQuery.data ?? [];
   return { jobs, addJob, updateJob, deleteJob, jobsError: jobsQuery.error instanceof Error ? jobsQuery.error.message : null, jobsLoading: jobsQuery.isLoading };
+}
+
+export function useApplicationActivities(userId: string | undefined, applicationId: string | null) {
+  return useQuery<PaginatedActivities>({
+    queryKey: ["applicationActivities", userId, applicationId],
+    queryFn: () => apiRequest<PaginatedActivities>(`/api/users/${userId}/jobs/${applicationId}/activity`),
+    enabled: !!userId && !!applicationId,
+  });
 }
 
