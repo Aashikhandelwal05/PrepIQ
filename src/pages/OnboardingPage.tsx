@@ -176,6 +176,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
   const [coursework, setCoursework] = useState("");
   const [certifications, setCertifications] = useState<string[]>([]);
   const [workHistory, setWorkHistory] = useState<WorkEntry[]>([emptyWorkEntry()]);
+  const [isFresher, setIsFresher] = useState(false);
   const [technicalSkills, setTechnicalSkills] = useState<SkillEntry[]>([]);
   const [techQuery, setTechQuery] = useState("");
   const [isTechOpen, setIsTechOpen] = useState(false);
@@ -239,6 +240,8 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
         return null;
       }
       case 2: {
+        if (isFresher) return null; // freshers skip work validation
+
         let filledCount = 0;
         const currentYear = new Date().getFullYear();
 
@@ -326,7 +329,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
       graduationYear,
       coursework,
       certifications,
-      workHistory,
+      workHistory: isFresher ? [] : workHistory,
       technicalSkills,
       softSkills,
       interviewFears: fears,
@@ -427,28 +430,53 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
 
               {step === 2 && (
                 <>
-                  {workHistory.map((entry, idx) => (
-                    <div key={entry.id} className="p-4 rounded-xl bg-secondary/30 border border-border space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Experience {idx + 1}</span>
-                        {workHistory.length > 1 && (
-                          <Button variant="ghost" size="sm" onClick={() => removeWorkEntry(entry.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <SearchableInput options={PREDEFINED_ROLES} placeholder="Job Title" value={entry.jobTitle} onChange={(v) => updateWork(entry.id, "jobTitle", v)} className="bg-secondary/50" />
-                        <SearchableInput options={PREDEFINED_COMPANIES} placeholder="Company" value={entry.company} onChange={(v) => updateWork(entry.id, "company", v)} className="bg-secondary/50" />
-                        <Input placeholder="From (e.g. 2020)" value={entry.from} onChange={(e) => updateWork(entry.id, "from", e.target.value)} className="bg-secondary/50" />
-                        <Input placeholder="To (e.g. 2023 or Present)" value={entry.to} onChange={(e) => updateWork(entry.id, "to", e.target.value)} className="bg-secondary/50" />
-                      </div>
-                      <Textarea placeholder="Key responsibilities..." value={entry.responsibilities} onChange={(e) => updateWork(entry.id, "responsibilities", e.target.value)} className="bg-secondary/50" />
+                  {/* Fresher toggle (issue #61) */}
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20">
+                    <Checkbox
+                      id="is-fresher-toggle"
+                      checked={isFresher}
+                      onCheckedChange={(checked) => setIsFresher(!!checked)}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <label
+                        htmlFor="is-fresher-toggle"
+                        className="text-sm font-medium text-foreground cursor-pointer"
+                      >
+                        I am a Fresher / No prior work experience
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Check this to skip the work experience section.
+                      </p>
                     </div>
-                  ))}
-                  <Button variant="outline" onClick={addWorkEntry} className="w-full border-dashed">
-                    <Plus className="w-4 h-4 mr-2" /> Add Experience
-                  </Button>
+                  </div>
+
+                  {!isFresher && (
+                    <>
+                      {workHistory.map((entry, idx) => (
+                        <div key={entry.id} className="p-4 rounded-xl bg-secondary/30 border border-border space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Experience {idx + 1}</span>
+                            {workHistory.length > 1 && (
+                              <Button variant="ghost" size="sm" onClick={() => removeWorkEntry(entry.id)}>
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <SearchableInput options={PREDEFINED_ROLES} placeholder="Job Title" value={entry.jobTitle} onChange={(v) => updateWork(entry.id, "jobTitle", v)} className="bg-secondary/50" />
+                            <SearchableInput options={PREDEFINED_COMPANIES} placeholder="Company" value={entry.company} onChange={(v) => updateWork(entry.id, "company", v)} className="bg-secondary/50" />
+                            <Input placeholder="From (e.g. 2020)" value={entry.from} onChange={(e) => updateWork(entry.id, "from", e.target.value)} className="bg-secondary/50" />
+                            <Input placeholder="To (e.g. 2023 or Present)" value={entry.to} onChange={(e) => updateWork(entry.id, "to", e.target.value)} className="bg-secondary/50" />
+                          </div>
+                          <Textarea placeholder="Key responsibilities..." value={entry.responsibilities} onChange={(e) => updateWork(entry.id, "responsibilities", e.target.value)} className="bg-secondary/50" />
+                        </div>
+                      ))}
+                      <Button variant="outline" onClick={addWorkEntry} className="w-full border-dashed">
+                        <Plus className="w-4 h-4 mr-2" /> Add Experience
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
 

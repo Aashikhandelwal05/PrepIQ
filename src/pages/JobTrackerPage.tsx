@@ -14,7 +14,9 @@ import {
   LayoutGrid,
   Table as TableIcon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Search,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -439,6 +441,22 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
 
   const { data: activitiesData } = useApplicationActivities(userId, selectedJob?.id ?? null);
 
+  // Search & filter state (issue #188)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<Status | "All">("All");
+
+  const filteredJobs = localJobs.filter((j) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch =
+      !term ||
+      j.companyName.toLowerCase().includes(term) ||
+      j.jobTitle.toLowerCase().includes(term);
+    const matchesStatus = statusFilter === "All" || j.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const hasActiveFilter = searchTerm !== "" || statusFilter !== "All";
+
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -627,7 +645,10 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
       } else if (isOverColumn) {
         if (activeJobObj.status !== overId) {
           activeJobObj.status = overId as Status;
-          return arrayMove(newJobs, activeIndex, newJobs.length - 1);
+          const lastInColumn = newJobs.reduce((last, j, i) =>
+            j.status === overId ? i : last, -1);
+          const targetIndex = lastInColumn >= 0 ? lastInColumn : activeIndex;
+          return arrayMove(newJobs, activeIndex, targetIndex);
         }
       }
       localJobsRef.current = newJobs;
@@ -662,6 +683,14 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
       setPendingNoteText("");
       setShowNoteDialog(true);
       void updateSelectedJobStatus(originalJob, finalStatus);
+    } else {
+      // Intra-column reorder: persist sort_order for all jobs in the column
+      const sorted = localJobs.filter((j) => j.status === originalJob.status);
+      await Promise.all(
+        sorted.map((j, i) =>
+          j.sortOrder !== i ? onUpdateJob(j.id, { sortOrder: i }) : Promise.resolve(j),
+        ),
+      );
     }
   };
 
@@ -682,7 +711,46 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Search bar (issue #188) */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                id="job-tracker-search"
+                placeholder="Search company or role…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 h-8 w-44 text-xs bg-secondary border-border"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            {/* Status filter */}
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status | "All")}>
+              <SelectTrigger id="job-tracker-status-filter" className="h-8 w-32 text-xs bg-secondary border-border">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All statuses</SelectItem>
+                {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {hasActiveFilter && (
+              <button
+                onClick={() => { setSearchTerm(""); setStatusFilter("All"); }}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                aria-label="Clear all filters"
+              >
+                Clear
+              </button>
+            )}
             <div className="flex bg-secondary rounded-lg p-0.5">
               <button onClick={() => setView("kanban")} className={`px-3 py-1.5 rounded-md text-sm transition-colors ${view === "kanban" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
                 <LayoutGrid className="w-4 h-4" />
@@ -741,18 +809,55 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
                   <div>
                     <Label>Job Title</Label>
 
-                    <Input
-                      list="job-roles"
-                      placeholder="e.g. Software Engineer"
-                      value={form.jobTitle}
-                      onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
-                      className="mt-1 bg-secondary/50"
-                    />
-                    <datalist id="job-roles">
-                      {JOB_ROLES.map((role) => (
-                        <option key={role} value={role} />
-                      ))}
-                    </datalist>
+                    <Popover open={jobRoleOpen} onOpenChange={setJobRoleOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={jobRoleOpen}
+                          className="w-full mt-1 justify-between bg-secondary/50"
+                        >
+                          {form.jobTitle || "Select a job title"}
+                        </Button>
+                      </PopoverTrigger>
+
+                      <PopoverContent
+                        align="start"
+                        side="bottom"
+                        sideOffset={4}
+                        className="w-[var(--radix-popover-trigger-width)] p-0"
+                        onWheel={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        <Command>
+                          <CommandInput placeholder="Search job title..." />
+
+                          <CommandEmpty>
+                            No job title found.
+                          </CommandEmpty>
+
+                          <CommandGroup className="max-h-64 overflow-y-auto">
+                            {JOB_ROLES.map((role) => (
+                              <CommandItem
+                                key={role}
+                                value={role}
+                                onSelect={() => {
+                                  setForm({
+                                    ...form,
+                                    jobTitle: role,
+                                  });
+
+                                  setJobRoleOpen(false);
+                                }}
+                              >
+                                {role}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div>
                     <Label>Job URL</Label>
@@ -992,7 +1097,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
         >
           <div className="flex gap-4 overflow-x-auto pb-4 max-h-[calc(100vh-320px)] [scrollbar-width:thin] [scrollbar-color:hsl(var(--primary))_transparent] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-secondary/30 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/70 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-primary">
             {kanbanColumns.map((status) => {
-              const colJobs = localJobs.filter((j) => j.status === status);
+              const colJobs = filteredJobs.filter((j) => j.status === status);
               return (
                 <SortableColumn key={status} id={status}>
                   <div className="flex items-center gap-2 mb-3">
@@ -1052,12 +1157,14 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
                 </tr>
               </thead>
               <tbody>
-                {localJobs.length === 0 ? (
+                {filteredJobs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-muted-foreground">No applications yet</td>
+                    <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                      {hasActiveFilter ? "No applications match your filters" : "No applications yet"}
+                    </td>
                   </tr>
                 ) : (
-                  localJobs.map((job) => (
+                  filteredJobs.map((job) => (
                     <tr key={job.id} className="border-b border-border/50 hover:bg-secondary/20 cursor-pointer" onClick={() => setSelectedJob(job)}>
                       <td className="py-3 px-4 font-medium text-foreground max-w-[220px] truncate">
                         <div className="flex items-center gap-2">

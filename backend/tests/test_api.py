@@ -22,8 +22,18 @@ class PrepIQApiTestCase(unittest.TestCase):
     def setUpClass(cls) -> None:
         if TEST_DB_PATH.exists():
             TEST_DB_PATH.unlink()
+
+        # Mock sentence-transformers to avoid downloading models from Hugging Face Hub
+        from backend.app import ml
+        class MockSentenceTransformer:
+            def encode(self, sentences, *args, **kwargs):
+                import numpy as np
+                return np.array([[1.0, 0.0], [1.0, 0.0]])
+        ml._sentence_transformer_model = MockSentenceTransformer()
+
         cls.client_cm = TestClient(app)
         cls.client = cls.client_cm.__enter__()
+
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -470,6 +480,49 @@ class PrepIQApiTestCase(unittest.TestCase):
         )
         self.assertEqual(res_bad_diff.status_code, 422)
 
+    def test_jd_text_too_long_returns_422(self) -> None:
+        user_id, headers = self.create_account()
+        res = self.client.post(
+            f"/api/users/{user_id}/sessions",
+            headers=headers,
+            json={
+                "jobTitle": "Engineer",
+                "company": "ACME",
+                "jdText": "a" * 15001,
+                "resumeText": "Valid resume text",
+            },
+        )
+        self.assertEqual(res.status_code, 422)
+        self.assertEqual(res.json()["detail"][0]["loc"], ["body", "jdText"])
+
+    def test_resume_text_too_long_returns_422(self) -> None:
+        user_id, headers = self.create_account()
+        res = self.client.post(
+            f"/api/users/{user_id}/sessions",
+            headers=headers,
+            json={
+                "jobTitle": "Engineer",
+                "company": "ACME",
+                "jdText": "Valid job description",
+                "resumeText": "a" * 8001,
+            },
+        )
+        self.assertEqual(res.status_code, 422)
+        self.assertEqual(res.json()["detail"][0]["loc"], ["body", "resumeText"])
+
+    def test_valid_session_lengths_accepted(self) -> None:
+        user_id, headers = self.create_account()
+        res = self.client.post(
+            f"/api/users/{user_id}/sessions",
+            headers=headers,
+            json={
+                "jobTitle": "Engineer",
+                "company": "ACME",
+                "jdText": "We are looking for a backend engineer.",
+                "resumeText": "5 years of Python experience.",
+            },
+        )
+        self.assertNotEqual(res.status_code, 422)
 
 if __name__ == "__main__":
     unittest.main()
