@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth, useCareerProfile, useInterviewSessions, useMockAttempts, useJobApplications } from "@/lib/store";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import SharedPrepPage from "./pages/SharedPrepPage";
 import { CommandPalette } from "./components/CommandPalette";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -148,6 +149,7 @@ function AppRoutes() {
             </AppLayout>
           }
         />
+        <Route path="/shared/prep/:token" element={<SharedPrepPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

@@ -458,3 +458,74 @@ export function useApplicationActivities(userId: string | undefined, application
   });
 }
 
+// --- Shared Reports ---
+
+export interface SharedReport {
+  id: string;
+  userId: string;
+  sessionId: string | null;
+  attemptId: string | null;
+  reportType: "prep" | "mock";
+  token: string;
+  hasPassword: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateSharedReportInput {
+  sessionId?: string;
+  attemptId?: string;
+  reportType: "prep" | "mock";
+  password?: string;
+  expiresInHours?: number;
+}
+
+export interface SharedReportPublic {
+  reportType: string;
+  createdAt: string;
+  prepSession: InterviewSession | null;
+  mockAttempt: MockAttempt | null;
+}
+
+export function useSharedReports(userId: string | undefined) {
+  const queryClient = useQueryClient();
+  const listQuery = useQuery<SharedReport[]>({
+    queryKey: ["sharedReports", userId],
+    queryFn: () => apiRequest<SharedReport[]>(`/api/users/${userId}/shared-reports`),
+    enabled: !!userId,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (input: CreateSharedReportInput) => {
+      if (!userId) throw new Error("User is not authenticated");
+      return apiRequest<SharedReport>(`/api/users/${userId}/shared-reports`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sharedReports", userId] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (reportId: string) => {
+      if (!userId) throw new Error("User is not authenticated");
+      return apiRequest<void>(`/api/users/${userId}/shared-reports/${reportId}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sharedReports", userId] });
+    },
+  });
+
+  return {
+    reports: listQuery.data ?? [],
+    reportsLoading: listQuery.isLoading,
+    createReport: createMutation.mutateAsync,
+    deleteReport: deleteMutation.mutateAsync,
+    creating: createMutation.isPending,
+  };
+}
+
