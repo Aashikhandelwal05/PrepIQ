@@ -2441,7 +2441,7 @@ def generate_share_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-@user_router.post("/api/users/{user_id}/sessions/{session_id}/shares")
+@app.post("/api/users/{user_id}/sessions/{session_id}/shares")
 async def create_prep_share(
     user_id: str,
     session_id: str,
@@ -2461,7 +2461,7 @@ async def create_prep_share(
     token = generate_share_token()
     password_hash_val = None
     if body.password:
-        password_hash_val = pwd_context.hash(body.password)
+        password_hash_val = hash_password(body.password)
 
     expires_at_val = None
     if body.expiration_days:
@@ -2493,7 +2493,7 @@ async def create_prep_share(
     )
 
 
-@user_router.post("/api/users/{user_id}/mocks/{attempt_id}/shares")
+@app.post("/api/users/{user_id}/mocks/{attempt_id}/shares")
 async def create_mock_share(
     user_id: str,
     attempt_id: str,
@@ -2513,7 +2513,7 @@ async def create_mock_share(
     token = generate_share_token()
     password_hash_val = None
     if body.password:
-        password_hash_val = pwd_context.hash(body.password)
+        password_hash_val = hash_password(body.password)
 
     expires_at_val = None
     if body.expiration_days:
@@ -2545,7 +2545,7 @@ async def create_mock_share(
     )
 
 
-@user_router.get("/api/users/{user_id}/shares")
+@app.get("/api/users/{user_id}/shares")
 async def list_user_shares(
     user_id: str,
     db: Session = Depends(get_db),
@@ -2575,7 +2575,7 @@ async def list_user_shares(
     ]
 
 
-@user_router.delete("/api/users/{user_id}/shares/{share_id}")
+@app.delete("/api/users/{user_id}/shares/{share_id}")
 async def revoke_share(
     user_id: str,
     share_id: str,
@@ -2596,7 +2596,7 @@ async def revoke_share(
 
 # ── Public Shared View Endpoints ───────────────────────────────────
 
-@router.get("/api/shared/prep/{token}")
+@app.get("/api/shared/prep/{token}")
 async def view_shared_prep(
     token: str,
     password: str | None = Query(None),
@@ -2617,7 +2617,7 @@ async def view_shared_prep(
     if share.password_hash:
         if not password:
             raise HTTPException(status_code=401, detail="Password required")
-        if not pwd_context.verify(password, share.password_hash):
+        if not verify_password(password, share.password_hash):
             raise HTTPException(status_code=403, detail="Invalid password")
 
     session = db.query(InterviewSessionTable).filter(
@@ -2640,7 +2640,7 @@ async def view_shared_prep(
     }
 
 
-@router.get("/api/shared/mock/{token}")
+@app.get("/api/shared/mock/{token}")
 async def view_shared_mock(
     token: str,
     password: str | None = Query(None),
@@ -2661,7 +2661,7 @@ async def view_shared_mock(
     if share.password_hash:
         if not password:
             raise HTTPException(status_code=401, detail="Password required")
-        if not pwd_context.verify(password, share.password_hash):
+        if not verify_password(password, share.password_hash):
             raise HTTPException(status_code=403, detail="Invalid password")
 
     attempt = db.query(MockAttemptTable).filter(
