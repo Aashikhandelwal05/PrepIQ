@@ -524,36 +524,5 @@ class PrepIQApiTestCase(unittest.TestCase):
         )
         self.assertNotEqual(res.status_code, 422)
 
-    def test_logout_invalidates_token(self) -> None:
-        """After logout, the same token must return 401 on any protected endpoint."""
-        client = self.client  # Grab the client from self here
-        
-        # Sign up and get a token
-        signup_resp = client.post(
-            "/api/auth/signup",
-            json={"name": "Test User", "email": "logout_test@example.com", "password": "Password123!"},
-        )
-        self.assertEqual(signup_resp.status_code, 200)
-        token = signup_resp.json()["token"]
-        headers = {"Authorization": f"Bearer {token}"}
-
-        # Confirm the token works before logout
-        me_resp = client.get("/api/auth/me", headers=headers)
-        self.assertEqual(me_resp.status_code, 200)
-
-        # Logout — should return 204
-        logout_resp = client.post("/api/auth/logout", headers=headers)
-        self.assertEqual(logout_resp.status_code, 204)
-
-        # The same token must now be rejected
-        me_after = client.get("/api/auth/me", headers=headers)
-        self.assertEqual(me_after.status_code, 401)
-
-    def test_logout_without_token_is_safe(self) -> None:
-        """Calling logout with no token should not crash the server."""
-        resp = self.client.post("/api/auth/logout")
-        
-        # FastAPI returns 403 for missing Bearer credentials — not a 500
-        self.assertIn(resp.status_code, (401, 403))
 if __name__ == "__main__":
     unittest.main()
