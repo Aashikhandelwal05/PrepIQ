@@ -9,12 +9,12 @@ import logging
 import os
 import re
 import secrets
-import resend
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
 import httpx
+import resend
 from fastapi import (
     Depends,
     FastAPI,
@@ -42,8 +42,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from .ml import analyze_confidence, compute_match_score, extract_skills
-
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
