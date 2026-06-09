@@ -162,7 +162,7 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
 
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={onLogout}
+              onClick={() => { void onLogout(); }}
               className="hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
               tooltip="Logout"
               aria-label="Logout"

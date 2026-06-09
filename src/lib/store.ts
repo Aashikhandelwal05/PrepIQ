@@ -241,7 +241,13 @@ export function useAuth() {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Revoke the token server-side before clearing it locally
+    try {
+      await apiRequest("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Even if the server call fails, we still clear the local session
+    }
     setSessionState(null);
     setSession(null);
   }, []);
