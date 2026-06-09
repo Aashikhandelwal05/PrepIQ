@@ -437,3 +437,31 @@ export function useJobApplications(userId: string | undefined) {
   return { jobs, addJob, updateJob, deleteJob, jobsError: jobsQuery.error instanceof Error ? jobsQuery.error.message : null, jobsLoading: jobsQuery.isLoading };
 }
 
+
+
+// ── Share Report Types ────────────────────────────────────────────
+
+export interface SharedPrepResponse {
+  session: {
+    id: string;
+    job_title: string;
+    company: string;
+    gap_analysis: GapItem[];
+    readiness_score: number;
+    extracted_skills: string[];
+    ml_match_score: number;
+  };
+  shared_at: string;
+}
+
+export interface SharedMockResponse {
+  attempt: {
+    id: string;
+    question: string;
+    user_answer: string;
+    ai_score: number;
+    ai_feedback: MockAttempt["aiFeedback"];
+    created_at: string;
+  };
+  shared_at: string;
+}

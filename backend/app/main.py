@@ -349,6 +349,20 @@ class WorkEntry(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SharedReportTable(Base):
+    __tablename__ = "shared_reports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    report_type: Mapped[str] = mapped_column(String(20))
+    reference_id: Mapped[str] = mapped_column(String(36), index=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+
 class SkillEntry(BaseModel):
     name: str
     proficiency: Literal["Beginner", "Intermediate", "Expert"]
@@ -2394,3 +2408,277 @@ async def post_anonymous_chat(
         )
 
     return {"reply": reply_content}
+
+
+# ── Share Report Models ────────────────────────────────────────────
+
+class ShareReportRequest(BaseModel):
+    password: str | None = Field(None, description="Optional password to protect the share link")
+    expiration_days: int | None = Field(None, ge=1, le=365, description="Days until the link expires")
+
+
+class ShareReportResponse(BaseModel):
+    id: str
+    token: str
+    url: str
+    created_at: datetime
+    expires_at: datetime | None
+
+
+class ShareLinkItem(BaseModel):
+    id: str
+    report_type: str
+    reference_id: str
+    token: str
+    created_at: datetime
+    expires_at: datetime | None
+    password_protected: bool
+
+
+# ── Share Report Endpoints ─────────────────────────────────────────
+
+def generate_share_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+@user_router.post("/api/users/{user_id}/sessions/{session_id}/shares")
+async def create_prep_share(
+    user_id: str,
+    session_id: str,
+    body: ShareReportRequest,
+    db: Session = Depends(get_db),
+) -> ShareReportResponse:
+    user = db.query(UserTable).filter(UserTable.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    session = db.query(InterviewSessionTable).filter(
+        InterviewSessionTable.id == session_id,
+        InterviewSessionTable.user_id == user_id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    token = generate_share_token()
+    password_hash_val = None
+    if body.password:
+        password_hash_val = pwd_context.hash(body.password)
+
+    expires_at_val = None
+    if body.expiration_days:
+        expires_at_val = utc_now() + timedelta(days=body.expiration_days)
+
+    share = SharedReportTable(
+        id=str(uuid4()),
+        user_id=user_id,
+        report_type="prep",
+        reference_id=session_id,
+        token=token,
+        password_hash=password_hash_val,
+        expires_at=expires_at_val,
+        created_at=utc_now(),
+    )
+    db.add(share)
+    db.commit()
+    db.refresh(share)
+
+    frontend_base = "https://prepiq.vercel.app"
+    share_url = f"{frontend_base}/shared/prep/{token}"
+
+    return ShareReportResponse(
+        id=share.id,
+        token=token,
+        url=share_url,
+        created_at=share.created_at,
+        expires_at=share.expires_at,
+    )
+
+
+@user_router.post("/api/users/{user_id}/mocks/{attempt_id}/shares")
+async def create_mock_share(
+    user_id: str,
+    attempt_id: str,
+    body: ShareReportRequest,
+    db: Session = Depends(get_db),
+) -> ShareReportResponse:
+    user = db.query(UserTable).filter(UserTable.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    attempt = db.query(MockAttemptTable).filter(
+        MockAttemptTable.id == attempt_id,
+        MockAttemptTable.user_id == user_id,
+    ).first()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    token = generate_share_token()
+    password_hash_val = None
+    if body.password:
+        password_hash_val = pwd_context.hash(body.password)
+
+    expires_at_val = None
+    if body.expiration_days:
+        expires_at_val = utc_now() + timedelta(days=body.expiration_days)
+
+    share = SharedReportTable(
+        id=str(uuid4()),
+        user_id=user_id,
+        report_type="mock",
+        reference_id=attempt_id,
+        token=token,
+        password_hash=password_hash_val,
+        expires_at=expires_at_val,
+        created_at=utc_now(),
+    )
+    db.add(share)
+    db.commit()
+    db.refresh(share)
+
+    frontend_base = "https://prepiq.vercel.app"
+    share_url = f"{frontend_base}/shared/mock/{token}"
+
+    return ShareReportResponse(
+        id=share.id,
+        token=token,
+        url=share_url,
+        created_at=share.created_at,
+        expires_at=share.expires_at,
+    )
+
+
+@user_router.get("/api/users/{user_id}/shares")
+async def list_user_shares(
+    user_id: str,
+    db: Session = Depends(get_db),
+) -> list[ShareLinkItem]:
+    user = db.query(UserTable).filter(UserTable.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    shares = (
+        db.query(SharedReportTable)
+        .filter(SharedReportTable.user_id == user_id)
+        .order_by(SharedReportTable.created_at.desc())
+        .all()
+    )
+
+    return [
+        ShareLinkItem(
+            id=s.id,
+            report_type=s.report_type,
+            reference_id=s.reference_id,
+            token=s.token,
+            created_at=s.created_at,
+            expires_at=s.expires_at,
+            password_protected=s.password_hash is not None,
+        )
+        for s in shares
+    ]
+
+
+@user_router.delete("/api/users/{user_id}/shares/{share_id}")
+async def revoke_share(
+    user_id: str,
+    share_id: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    share = (
+        db.query(SharedReportTable)
+        .filter(SharedReportTable.id == share_id, SharedReportTable.user_id == user_id)
+        .first()
+    )
+    if not share:
+        raise HTTPException(status_code=404, detail="Share not found")
+
+    db.delete(share)
+    db.commit()
+    return {"detail": "Share revoked"}
+
+
+# ── Public Shared View Endpoints ───────────────────────────────────
+
+@router.get("/api/shared/prep/{token}")
+async def view_shared_prep(
+    token: str,
+    password: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> dict:
+    share = db.query(SharedReportTable).filter(
+        SharedReportTable.token == token,
+        SharedReportTable.report_type == "prep",
+    ).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Share link not found or has been revoked")
+
+    if share.expires_at and share.expires_at < utc_now():
+        db.delete(share)
+        db.commit()
+        raise HTTPException(status_code=410, detail="Share link has expired")
+
+    if share.password_hash:
+        if not password:
+            raise HTTPException(status_code=401, detail="Password required")
+        if not pwd_context.verify(password, share.password_hash):
+            raise HTTPException(status_code=403, detail="Invalid password")
+
+    session = db.query(InterviewSessionTable).filter(
+        InterviewSessionTable.id == share.reference_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Shared session not found")
+
+    return {
+        "session": {
+            "id": session.id,
+            "job_title": session.job_title,
+            "company": session.company,
+            "gap_analysis": session.gap_analysis,
+            "readiness_score": session.readiness_score,
+            "extracted_skills": session.extracted_skills if hasattr(session, 'extracted_skills') else [],
+            "ml_match_score": session.ml_match_score if hasattr(session, 'ml_match_score') else 0,
+        },
+        "shared_at": share.created_at.isoformat(),
+    }
+
+
+@router.get("/api/shared/mock/{token}")
+async def view_shared_mock(
+    token: str,
+    password: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> dict:
+    share = db.query(SharedReportTable).filter(
+        SharedReportTable.token == token,
+        SharedReportTable.report_type == "mock",
+    ).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Share link not found or has been revoked")
+
+    if share.expires_at and share.expires_at < utc_now():
+        db.delete(share)
+        db.commit()
+        raise HTTPException(status_code=410, detail="Share link has expired")
+
+    if share.password_hash:
+        if not password:
+            raise HTTPException(status_code=401, detail="Password required")
+        if not pwd_context.verify(password, share.password_hash):
+            raise HTTPException(status_code=403, detail="Invalid password")
+
+    attempt = db.query(MockAttemptTable).filter(
+        MockAttemptTable.id == share.reference_id
+    ).first()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Shared mock attempt not found")
+
+    return {
+        "attempt": {
+            "id": attempt.id,
+            "question": attempt.question,
+            "user_answer": attempt.user_answer,
+            "ai_score": attempt.ai_score,
+            "ai_feedback": attempt.ai_feedback,
+            "created_at": attempt.created_at.isoformat(),
+        },
+        "shared_at": share.created_at.isoformat(),
+    }
+
