@@ -510,6 +510,46 @@ class PrepIQApiTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 422)
         self.assertEqual(res.json()["detail"][0]["loc"], ["body", "resumeText"])
 
+    def test_session_with_interview_date(self) -> None:
+        from datetime import timedelta
+        from backend.app.main import utc_now
+
+        user_id, headers = self.create_account()
+        
+        # Test 1: Date in 10 days should result in 10-day roadmap
+        future_date = (utc_now() + timedelta(days=10)).date().isoformat()
+        res = self.client.post(
+            f"/api/users/{user_id}/sessions",
+            headers=headers,
+            json={
+                "jobTitle": "Date Engineer",
+                "company": "TimeCorp",
+                "jdText": "Handle time-sensitive data",
+                "resumeText": "Expert in calendars",
+                "interviewDate": future_date,
+            },
+        )
+        self.assertEqual(res.status_code, 201, res.text)
+        payload = res.json()
+        self.assertEqual(payload["interviewDate"], future_date)
+        # Note: roadmap length might be different if LLM was called, but fallback logic ensures days_remaining
+        # Since this is a test and we might be using fallback, we check roadmap length.
+        self.assertEqual(len(payload["roadmap"]), 10)
+
+        # Test 2: Date in 1 day should result in 1-day roadmap
+        urgent_date = (utc_now() + timedelta(days=1)).date().isoformat()
+        res = self.client.post(
+            f"/api/users/{user_id}/sessions",
+            headers=headers,
+            json={
+                "jobTitle": "Emergency Engineer",
+                "company": "UrgentInc",
+                "interviewDate": urgent_date,
+            },
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(len(res.json()["roadmap"]), 1)
+
     def test_valid_session_lengths_accepted(self) -> None:
         user_id, headers = self.create_account()
         res = self.client.post(

@@ -174,6 +174,7 @@ class InterviewSessionTable(Base):
     company: Mapped[str] = mapped_column(String(255))
     jd_text: Mapped[str] = mapped_column(Text)
     resume_text: Mapped[str] = mapped_column(Text)
+    interview_date: Mapped[str | None] = mapped_column(String(32), nullable=True)
     is_estimated: Mapped[bool] = mapped_column(Boolean, default=False)
     gap_analysis: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     readiness_score: Mapped[int] = mapped_column(Integer)
@@ -401,6 +402,7 @@ class InterviewSession(BaseModel):
     company: str
     jdText: str
     resumeText: str
+    interviewDate: str | None = None
     isEstimated: bool
     gapAnalysis: list[GapItem]
     readinessScore: int
@@ -416,6 +418,7 @@ class CreateInterviewSessionRequest(BaseModel):
     company: str
     jdText: str = Field(default="", max_length=15000)
     resumeText: str = Field(default="", max_length=8000)
+    interviewDate: str | None = None
 
     @field_validator("jobTitle", "company", mode="after")
     @classmethod
@@ -569,12 +572,13 @@ def session_from_table(session: InterviewSessionTable) -> InterviewSession:
         company=session.company,
         jdText=session.jd_text,
         resumeText=session.resume_text,
+        interviewDate=session.interview_date,
         isEstimated=session.is_estimated,
         gapAnalysis=session.gap_analysis,
         readinessScore=session.readiness_score,
         questionBank=session.question_bank,
         roadmap=session.roadmap,
-        extractedSkills=session.extracted_skills or [],
+        extracted_skills=session.extracted_skills or [],
         mlMatchScore=session.ml_match_score or 0,
         createdAt=session.created_at.isoformat(),
     )
@@ -748,8 +752,28 @@ async def generate_session_payload(
     company: str,
     jd_text: str,
     resume_text: str,
+    interview_date: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> tuple[list[GapItem], int, list[QuestionItem], list[RoadmapDay], bool]:
+    days_remaining = 5  # Default
+    if interview_date:
+        try:
+            # interview_date is expected to be in YYYY-MM-DD format from the frontend
+            idate = datetime.strptime(interview_date, "%Y-%m-%d").date()
+            today = utc_now().date()
+            delta = (idate - today).days
+            # Apply logic from issue #179
+            if delta <= 2:
+                days_remaining = max(1, delta) if delta > 0 else 1
+            elif delta <= 5:
+                days_remaining = 5
+            elif delta <= 14:
+                days_remaining = min(10, delta)
+            else:
+                days_remaining = 10
+        except (ValueError, TypeError):
+            days_remaining = 5
+
     try:
         response = await call_openrouter_json(
             system_prompt=(
@@ -763,13 +787,14 @@ async def generate_session_payload(
                 "gapAnalysis must be an array with 3 to 5 items. For each gapAnalysis item, "
                 "include 2-3 resource keywords (e.g., 'React', 'MDN', 'System Design', 'Python Docs'). "
                 "questionBank must be an array with 6 to 10 items. "
-                "roadmap must be an array with exactly 5 days."
+                f"roadmap must be an array with exactly {days_remaining} days."
             ),
             user_prompt=(
                 f"Job title: {job_title}\n"
                 f"Company: {company}\n"
                 f"Job description:\n{jd_text or 'Not provided'}\n\n"
                 f"Resume:\n{resume_text or 'Not provided'}\n\n"
+                f"Days until interview: {days_remaining}\n"
                 "Generate concise, realistic prep content for an interview prep dashboard."
             ),
             client=client,
@@ -923,53 +948,27 @@ async def generate_session_payload(
             tip="Demonstrate triage, communication, and follow-through.",
         ),
     ]
-    roadmap = [
-        RoadmapDay(
-            day=1,
-            focusArea="Company Research",
-            tasks=[
-                f"Research {company}'s products",
-                "Study the team and stack",
-                "Read recent company updates",
-            ],
-        ),
-        RoadmapDay(
-            day=2,
-            focusArea="Technical Review",
-            tasks=[
-                "Review core concepts",
-                f"Practice {job_title}-specific problems",
-                "Refresh system design patterns",
-            ],
-        ),
-        RoadmapDay(
-            day=3,
-            focusArea="Behavioral Prep",
-            tasks=[
-                "Prepare STAR stories",
-                "Practice behavioral questions",
-                "Review achievements with metrics",
-            ],
-        ),
-        RoadmapDay(
-            day=4,
-            focusArea="Mock Interviews",
-            tasks=[
-                "Run 2 mock rounds",
-                "Review weak answers",
-                "Refine delivery and examples",
-            ],
-        ),
-        RoadmapDay(
-            day=5,
-            focusArea="Final Review",
-            tasks=[
-                "Review notes",
-                "Prepare questions to ask",
-                "Rest before the interview",
-            ],
-        ),
+    
+    # Generate dynamic fallback roadmap
+    roadmap = []
+    fallback_topics = [
+        ("Company Research", [f"Research {company}'s products", "Study the team and stack", "Read recent company updates"]),
+        ("Technical Review", ["Review core concepts", f"Practice {job_title}-specific problems", "Refresh system design patterns"]),
+        ("Behavioral Prep", ["Prepare STAR stories", "Practice behavioral questions", "Review achievements with metrics"]),
+        ("Mock Interviews", ["Run 2 mock rounds", "Review weak answers", "Refine delivery and examples"]),
+        ("Final Review", ["Review notes", "Prepare questions to ask", "Rest before the interview"]),
+        ("Coding Practice", ["Solve data structure problems", "Practice whiteboarding", "Review time complexity"]),
+        ("System Architecture", ["Design scalable systems", "Review database sharding", "Study caching strategies"]),
+        ("Culture Fit", ["Align with company values", "Prepare questions for interviewer", "Review personal growth goals"]),
+        ("Project Deep-dive", ["Review technical decisions", "Explain architectural choices", "Quantify project impact"]),
+        ("Wrap-up Prep", ["Organize final notes", "Verify remote setup", "Mental rehearsal"]),
     ]
+    
+    for d in range(1, days_remaining + 1):
+        topic_idx = (d - 1) % len(fallback_topics)
+        focus, tasks = fallback_topics[topic_idx]
+        roadmap.append(RoadmapDay(day=d, focusArea=focus, tasks=tasks))
+        
     is_estimated = not resume_text.strip() and not jd_text.strip()
     return gap_analysis, readiness, question_bank, roadmap, is_estimated
 
@@ -1318,6 +1317,15 @@ async def startup() -> None:
             try:
                 conn.execute(
                     text(
+                        "ALTER TABLE interview_sessions ADD COLUMN interview_date VARCHAR(32)"
+                    )
+                )
+            except Exception:
+                pass
+
+            try:
+                conn.execute(
+                    text(
                         "ALTER TABLE users ADD COLUMN anonymous_mode BOOLEAN DEFAULT FALSE"
                     )
                 )
@@ -1593,6 +1601,7 @@ async def create_session(
         payload.company,
         payload.jdText,
         payload.resumeText,
+        interview_date=payload.interviewDate,
         client=client,
     )
 
@@ -1607,6 +1616,7 @@ async def create_session(
         company=payload.company,
         jd_text=payload.jdText,
         resume_text=payload.resumeText,
+        interview_date=payload.interviewDate,
         is_estimated=is_estimated,
         gap_analysis=[item.model_dump() for item in gap_analysis],
         readiness_score=readiness,

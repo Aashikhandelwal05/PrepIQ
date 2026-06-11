@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Configurable interview prep roadmap duration based on interview date (#179)
+- Optional interview date picker in prep session creation form
+- Dynamic roadmap adjustment (1-10 days) based on days remaining
+
 ## [2.0.0] - 2026-05-01
 
 ### Added

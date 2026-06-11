@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, Fragment } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, Loader2, Search, Brain, Cpu, Upload, Trash2, ChevronDown } from "lucide-react";
+import { BookOpen, Loader2, Search, Brain, Cpu, Upload, Trash2, ChevronDown, Calendar as CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -19,6 +21,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiUpload } from "@/lib/api";
 import {
@@ -48,6 +56,7 @@ export default function InterviewPrepPage({
   const [company, setCompany] = useState("");
   const [jd, setJd] = useState("");
   const [resume, setResume] = useState("");
+  const [interviewDate, setInterviewDate] = useState<Date | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [activeSession, setActiveSession] = useState<InterviewSession | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -85,6 +94,7 @@ export default function InterviewPrepPage({
     setJobTitle(selectedJob.jobTitle);
     setCompany(selectedJob.companyName);
     setJd(selectedJob.notes || "");
+    setInterviewDate(undefined);
   };
 
   const handleFileUpload = async (
@@ -145,6 +155,7 @@ export default function InterviewPrepPage({
         company,
         jdText: jd,
         resumeText: resume,
+        interviewDate: interviewDate ? format(interviewDate, "yyyy-MM-dd") : undefined,
       });
       setActiveSession(session);
       setShowForm(false);
@@ -279,6 +290,35 @@ export default function InterviewPrepPage({
               </div>
             </div>
             <div>
+              <Label className="block mb-1">Interview Date (Optional)</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal bg-secondary/50",
+                      !interviewDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {interviewDate ? format(interviewDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={interviewDate}
+                    onSelect={setInterviewDate}
+                    initialFocus
+                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  />
+                </PopoverContent>
+              </Popover>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Providing a date allows us to tailor your study roadmap to your remaining time.
+              </p>
+            </div>
+            <div>
               <div className="flex items-center justify-between mb-1">
                 <Label>Job Description</Label>
                 <div>
@@ -384,7 +424,15 @@ export default function InterviewPrepPage({
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h2 className="text-xl font-bold text-foreground">{activeSession.company} — {activeSession.jobTitle}</h2>
-              <p className="text-sm text-muted-foreground">Generated on {new Date(activeSession.createdAt).toLocaleDateString()}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-xs text-muted-foreground">Generated on {new Date(activeSession.createdAt).toLocaleDateString()}</p>
+                {activeSession.interviewDate && (
+                  <Badge variant="outline" className="text-[10px] h-5 gap-1 border-primary/30 text-primary">
+                    <CalendarIcon className="w-3 h-3" />
+                    Interview: {format(new Date(activeSession.interviewDate), "PPP")}
+                  </Badge>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {linkedJob && (
