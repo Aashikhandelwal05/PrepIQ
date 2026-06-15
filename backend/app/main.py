@@ -1300,6 +1300,19 @@ async def validate_payload_size(request: Request) -> None:
 
 app = FastAPI(title="PrepIQ Backend", version="2.0.0")
 
+
+import traceback
+
+@app.exception_handler(Exception)
+async def debug_exception_handler(request: Request, exc: Exception):
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    logger.error(f"Unhandled exception: {tb}")
+    return Response(
+        content=f"Internal Server Error\n\nTraceback:\n{tb}",
+        media_type="text/plain",
+        status_code=500,
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
