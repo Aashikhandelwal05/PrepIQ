@@ -1333,44 +1333,53 @@ async def startup() -> None:
 
         from sqlalchemy import text
 
-        with engine.begin() as conn:
-            try:
+        # 1. users Table anonymous_mode column
+        try:
+            with engine.begin() as conn:
                 conn.execute(
                     text(
                         "ALTER TABLE users ADD COLUMN anonymous_mode BOOLEAN DEFAULT FALSE"
                     )
                 )
-            except Exception:
-                pass
+        except Exception as e:
+            logging.getLogger(__name__).info(f"Migration users anonymous_mode ignored: {e}")
 
-            try:
+        # 2. mentor_chat_history Table session_id column
+        try:
+            with engine.begin() as conn:
                 conn.execute(
                     text(
                         "ALTER TABLE mentor_chat_history ADD COLUMN session_id VARCHAR(36)"
                     )
                 )
-            except Exception:
-                pass
+        except Exception as e:
+            logging.getLogger(__name__).info(f"Migration mentor_chat_history session_id ignored: {e}")
 
-            try:
+        # 3. interview_sessions Table interview_date column
+        try:
+            with engine.begin() as conn:
                 conn.execute(
                     text(
                         "ALTER TABLE interview_sessions ADD COLUMN interview_date VARCHAR(32)"
                     )
                 )
-            except Exception:
-                pass
+        except Exception as e:
+            logging.getLogger(__name__).info(f"Migration interview_sessions interview_date ignored: {e}")
 
-            try:
+        # 4. job_applications Table sort_order column
+        try:
+            with engine.begin() as conn:
                 conn.execute(
                     text(
                         "ALTER TABLE job_applications ADD COLUMN sort_order INTEGER DEFAULT 0"
                     )
                 )
-            except Exception:
-                pass
+        except Exception as e:
+            logging.getLogger(__name__).info(f"Migration job_applications sort_order ignored: {e}")
 
-            try:
+        # 5. mentor_chat_history data migration
+        try:
+            with engine.begin() as conn:
                 res = conn.execute(
                     text(
                         "SELECT COUNT(*) FROM mentor_chat_history WHERE session_id IS NULL"
@@ -1403,8 +1412,8 @@ async def startup() -> None:
                             ),
                             {"sid": sid, "uid": uid},
                         )
-            except Exception as e:
-                logging.getLogger(__name__).warning(f"Migration error: {e}")
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Migration error: {e}")
     except Exception:
         logging.getLogger(__name__).exception("Failed to create database tables")
         raise
