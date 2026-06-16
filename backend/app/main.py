@@ -14,6 +14,13 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import httpx
+from .sanitize import (
+    ANSWER_MAX_LENGTH,
+    JD_MAX_LENGTH,
+    QUESTION_MAX_LENGTH,
+    RESUME_MAX_LENGTH,
+    sanitize_and_wrap,
+)
 from fastapi import (
     Depends,
     FastAPI,
@@ -797,6 +804,21 @@ async def generate_session_payload(
     resume_text: str,
     days_remaining: int | None = None,
     client: httpx.AsyncClient | None = None,
+) -> tuple[list[GapItem], int, list[QuestionItem], list[RoadmapDay]]:
+    if len(resume_text or "") > RESUME_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail="Resume exceeds maximum length of 10000 characters.",
+        )
+
+    if len(jd_text or "") > JD_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description exceeds maximum length of 5000 characters.",
+        )
+
+    safe_resume = sanitize_and_wrap(resume_text or "Not provided")
+    safe_jd = sanitize_and_wrap(jd_text or "Not provided")
 ) -> tuple[list[GapItem], int, list[QuestionItem], list[RoadmapDay], bool]:
     target_days = get_roadmap_days(
             days_remaining
@@ -818,8 +840,8 @@ async def generate_session_payload(
             user_prompt=(
                 f"Job title: {job_title}\n"
                 f"Company: {company}\n"
-                f"Job description:\n{jd_text or 'Not provided'}\n\n"
-                f"Resume:\n{resume_text or 'Not provided'}\n\n"
+                f"Job description:\n{safe_jd}\n\n"
+                f"Resume:\n{safe_resume}\n\n"
                 "Generate concise, realistic prep content for an interview prep dashboard."
             ),
             client=client,
@@ -1103,9 +1125,24 @@ async def evaluate_mock_attempt(
     question: str, answer: str, client: httpx.AsyncClient | None = None
 ) -> tuple[int, MockFeedback]:
     confidence = ConfidenceAnalysis(**analyze_confidence(answer))
+    if len(question or "") > QUESTION_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail="Question exceeds maximum length of 2000 characters.",
+        )
+
+    if len(answer or "") > ANSWER_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail="Answer exceeds maximum length of 2000 characters.",
+        )
+
+    safe_question = sanitize_and_wrap(question)
+    safe_answer = sanitize_and_wrap(answer)
 
     answer_text = answer.strip()
     answer_words = re.findall(r"\w+", answer_text)
+    # Pre-validation: Catch extremely short or purely gibberish answers early
     if (
         len(answer_words) < 5
         or len(answer_text) < 20
@@ -1138,8 +1175,8 @@ async def evaluate_mock_attempt(
                 "strengths and missing must each be arrays with 2 to 4 concise strings."
             ),
             user_prompt=(
-                f"Question:\n{question}\n\n"
-                f"Candidate answer:\n{answer}\n\n"
+                f"Question:\n{safe_question}\n\n"
+                f"Candidate answer:\n{safe_answer}\n\n"
                 "Evaluate the answer for a job-seeker preparation product."
             ),
             client=client,
