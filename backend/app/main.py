@@ -316,6 +316,17 @@ def hash_password(password: str, salt: str | None = None) -> str:
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
+    # Backward-compatibility: hashes created by the old passlib/bcrypt era
+    # start with $2b$ or $2a$.  Try bcrypt verification if passlib is available.
+    if stored_hash.startswith(("$2b$", "$2a$")):
+        try:
+            from passlib.context import CryptContext  # type: ignore[import]
+            return CryptContext(schemes=["bcrypt"], deprecated="auto").verify(
+                password, stored_hash
+            )
+        except Exception:
+            return False
+    # Current format: "<salt>$<base64-pbkdf2-digest>"
     try:
         salt, _ = stored_hash.split("$", 1)
     except ValueError:
