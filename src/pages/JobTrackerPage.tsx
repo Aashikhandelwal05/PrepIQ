@@ -5,6 +5,7 @@ import {
   subWeeks,
   format,
   isSameDay,
+  formatDistanceToNow,
 } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -36,7 +37,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CreateJobApplicationInput, JobApplication, InterviewSession } from "@/lib/store";
+import { ApplicationActivity, CreateJobApplicationInput, JobApplication, InterviewSession } from "@/lib/store";
+import { useApplicationActivities } from "@/lib/store";
 
 import {
   Command,
@@ -234,6 +236,14 @@ function SortableCard({ job, onClick, isOverdue, prepScore }: { job: JobApplicat
     touchAction: "none",
   };
 
+  const lastUpdated = (() => {
+    try {
+      return formatDistanceToNow(new Date(job.updatedAt), { addSuffix: true });
+    } catch {
+      return "";
+    }
+  })();
+
   return (
     <div
       ref={setNodeRef}
@@ -260,7 +270,10 @@ function SortableCard({ job, onClick, isOverdue, prepScore }: { job: JobApplicat
           </div>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">{job.dateApplied}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{job.dateApplied}</p>
+        <p className="text-[10px] text-muted-foreground/60">{lastUpdated}</p>
+      </div>
     </div>
   );
 }
@@ -421,6 +434,13 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
   const localJobsRef = useRef(jobs);
   const [activeJob, setActiveJob] = useState<JobApplication | null>(null);
 
+  // Note dialog after drag
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [pendingNoteJob, setPendingNoteJob] = useState<{ job: JobApplication; newStatus: string } | null>(null);
+  const [pendingNoteText, setPendingNoteText] = useState("");
+
+  const { data: activitiesData } = useApplicationActivities(userId, selectedJob?.id ?? null);
+
   // Search & filter state (issue #188)
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "All">("All");
@@ -574,6 +594,19 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
   };
 
   // --- Drag and Drop Handlers ---
+  const submitNote = async () => {
+    if (!pendingNoteJob) return;
+    const note = pendingNoteText.trim();
+    if (note) {
+      try {
+        await onUpdateJob(pendingNoteJob.job.id, { status: pendingNoteJob.newStatus as Status, notes: note });
+      } catch { /* error toast already shown by updateSelectedJobStatus */ }
+    }
+    setShowNoteDialog(false);
+    setPendingNoteJob(null);
+    setPendingNoteText("");
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const job = localJobs.find((j) => j.id === active.id);
@@ -644,8 +677,11 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
       finalStatus = over.data.current.job.status;
     }
 
-    // If status changed due to drag, trigger API sync
+    // If status changed due to drag, trigger API sync and show note dialog
     if (finalStatus !== originalJob.status) {
+      setPendingNoteJob({ job: originalJob, newStatus: finalStatus });
+      setPendingNoteText("");
+      setShowNoteDialog(true);
       void updateSelectedJobStatus(originalJob, finalStatus);
     } else {
       // Intra-column reorder: persist sort_order for all jobs in the column
@@ -1000,6 +1036,40 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
                 <Label>Notes</Label>
                 <Textarea value={draftJob.notes} onChange={(e) => setDraftJob({ ...draftJob, notes: e.target.value })} className="mt-1 bg-secondary/50" rows={4} />
               </div>
+
+              {/* Activity Timeline */}
+              <details className="group">
+                <summary className="cursor-pointer text-sm font-medium text-foreground flex items-center gap-2 py-2 select-none">
+                  <span className="text-xs transition-transform group-open:rotate-90">▶</span>
+                  Activity Log
+                  {activitiesData && <span className="text-xs text-muted-foreground">({activitiesData.total})</span>}
+                </summary>
+                <div className="mt-2 space-y-3 max-h-60 overflow-y-auto pl-2 border-l-2 border-border">
+                  {activitiesData && activitiesData.items.length > 0 ? (
+                    activitiesData.items.map((act) => {
+                      const ago = (() => { try { return formatDistanceToNow(new Date(act.createdAt), { addSuffix: true }); } catch { return ""; } })();
+                      const oldColor = act.oldStatus ? statusColor[act.oldStatus]?.split(" ")[0] ?? "bg-muted" : "bg-muted";
+                      const newColor = statusColor[act.newStatus]?.split(" ")[0] ?? "bg-muted";
+                      return (
+                        <div key={act.id} className="relative pl-4">
+                          <div className="absolute left-[-9px] top-1 w-3 h-3 rounded-full border-2 border-background bg-primary" />
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                            {act.oldStatus ? (
+                              <><Badge className={`${statusColor[act.oldStatus]} text-[10px] px-1.5 py-0 h-5`}>{act.oldStatus}</Badge><span className="text-muted-foreground">→</span></>
+                            ) : null}
+                            <Badge className={`${statusColor[act.newStatus]} text-[10px] px-1.5 py-0 h-5`}>{act.newStatus}</Badge>
+                            <span className="text-muted-foreground/60 ml-auto whitespace-nowrap">{ago}</span>
+                          </div>
+                          {act.note && <p className="text-xs text-muted-foreground mt-1 italic">"{act.note}"</p>}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No activity recorded yet.</p>
+                  )}
+                </div>
+              </details>
+
               <div className="flex gap-3 mt-4">
                 <Button onClick={saveDraftJob} disabled={savingDraft || deletingJob} className="gradient-primary text-primary-foreground">
                   {savingDraft ? "Saving..." : "Save Changes"}
@@ -1232,6 +1302,36 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Note dialog after status-change drag */}
+      <Dialog open={showNoteDialog} onOpenChange={(open) => { if (!open) { setShowNoteDialog(false); setPendingNoteJob(null); setPendingNoteText(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Add a note for {pendingNoteJob?.job.companyName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Status changed from <strong>{pendingNoteJob?.job.status}</strong> to <strong>{pendingNoteJob?.newStatus}</strong>
+            </p>
+            <Textarea
+              placeholder="Optional note about this status change..."
+              value={pendingNoteText}
+              onChange={(e) => setPendingNoteText(e.target.value)}
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowNoteDialog(false); setPendingNoteJob(null); setPendingNoteText(""); }}>
+                Skip
+              </Button>
+              <Button onClick={submitNote} className="gradient-primary text-primary-foreground">
+                Save Note
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

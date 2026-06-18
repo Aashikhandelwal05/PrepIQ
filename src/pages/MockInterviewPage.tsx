@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   MessageSquare, Loader2, CheckCircle, XCircle,
-  ChevronDown, ChevronUp, Activity, Sparkles, RefreshCw, Timer, AlertTriangle,
+  ChevronDown, ChevronUp, Activity, Sparkles, RefreshCw, Timer, AlertTriangle, Share2, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,8 +13,11 @@ import {
   SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { CreateMockAttemptInput, MockAttempt, InterviewSession } from "@/lib/store";
+import { CreateMockAttemptInput, MockAttempt, InterviewSession, useSharedReports } from "@/lib/store";
 import { apiRequest } from "@/lib/api";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import ShareReportModal from "@/components/ShareReportModal";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -183,8 +186,10 @@ export default function MockInterviewPage({
   const [result, setResult] = useState<MockAttempt | null>(null);
   const [showModel, setShowModel] = useState(false);
   const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
+  const [shareAttempt, setShareAttempt] = useState<MockAttempt | null>(null);
   const [selectedSession, setSelectedSession] = useState<string>("custom");
   const { toast } = useToast();
+  const { sharedReports, createSharedReport, deleteSharedReport, creating } = useSharedReports(userId);
   const answerRef = useRef<HTMLTextAreaElement>(null);
 
   // ── NEW: AI question generation state ──────────────────────────────────
@@ -345,6 +350,32 @@ export default function MockInterviewPage({
       : s >= 5
         ? "bg-warning/20 text-warning border-warning/30"
         : "bg-destructive/20 text-destructive border-destructive/30";
+
+  const handleDownloadPdf = () => {
+    if (!shareAttempt) return;
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Mock Interview Report", 14, 22);
+    doc.setFontSize(11);
+    doc.text(`Question: ${shareAttempt.question}`, 14, 32);
+    doc.text(`Score: ${shareAttempt.aiScore}/10`, 14, 40);
+    if (shareAttempt.userAnswer) {
+      doc.text(`Your Answer: ${shareAttempt.userAnswer}`, 14, 48);
+    }
+    if (shareAttempt.aiFeedback) {
+      const body = [
+        ...shareAttempt.aiFeedback.strengths.map((s) => ["Strength", s]),
+        ...shareAttempt.aiFeedback.missing.map((m) => ["Area to Improve", m]),
+        ["Verdict", shareAttempt.aiFeedback.oneLineVerdict],
+      ];
+      autoTable(doc, {
+        startY: 58,
+        head: [["Category", "Content"]],
+        body,
+      });
+    }
+    doc.save(`mock-report-${shareAttempt.id.slice(0, 8)}.pdf`);
+  };
 
   const selectedSessionQuestions =
     sessions.find((s) => s.id === selectedSession)?.questionBank || [];
@@ -748,6 +779,14 @@ export default function MockInterviewPage({
                       <Badge className={scoreColor(a.aiScore)}>{a.aiScore}/10</Badge>
                       <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShareAttempt(a)}
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => {
@@ -878,6 +917,19 @@ export default function MockInterviewPage({
           </div>
         )
       }
+
+      <ShareReportModal
+        open={!!shareAttempt}
+        onOpenChange={(open) => { if (!open) setShareAttempt(null); }}
+        attemptId={shareAttempt?.id}
+        reportType="mock"
+        userId={userId}
+        reports={sharedReports}
+        creating={creating}
+        onCreateReport={createSharedReport}
+        onDeleteReport={deleteSharedReport}
+        onDownloadPdf={handleDownloadPdf}
+      />
     </div >
   );
 }

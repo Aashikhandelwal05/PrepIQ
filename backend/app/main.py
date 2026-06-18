@@ -205,6 +205,20 @@ class MockAttemptTable(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class SharedReportTable(Base):
+    __tablename__ = "shared_reports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    report_type: Mapped[str] = mapped_column(String(10))
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class JobApplicationTable(Base):
     __tablename__ = "job_applications"
 
@@ -228,6 +242,17 @@ class JobApplicationTable(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ApplicationActivityTable(Base):
+    __tablename__ = "application_activities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    application_id: Mapped[str] = mapped_column(String(36), index=True)
+    old_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(32))
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class MentorChatSessionTable(Base):
@@ -487,6 +512,33 @@ class PaginatedMockAttempts(BaseModel):
     offset: int
 
 
+class CreateSharedReportRequest(BaseModel):
+    sessionId: str | None = None
+    attemptId: str | None = None
+    reportType: Literal["prep", "mock"]
+    password: str | None = None
+    expiresInHours: int | None = None
+
+
+class SharedReport(BaseModel):
+    id: str
+    userId: str
+    sessionId: str | None
+    attemptId: str | None
+    reportType: str
+    token: str
+    hasPassword: bool
+    expiresAt: str | None
+    createdAt: str
+
+
+class SharedReportPublic(BaseModel):
+    reportType: str
+    createdAt: str
+    prepSession: InterviewSession | None = None
+    mockAttempt: MockAttempt | None = None
+
+
 JobStatus = Literal["Applied", "Screening", "Interview", "Offer", "Rejected", "Ghosted"]
 
 
@@ -549,6 +601,20 @@ class UpdateJobApplicationRequest(BaseModel):
     nextActionDate: str | None = None
     linkedPrepSessionId: str | None = None
     sortOrder: int | None = None
+
+
+class ApplicationActivity(BaseModel):
+    id: str
+    applicationId: str
+    oldStatus: str | None
+    newStatus: str
+    note: str | None
+    createdAt: str
+
+
+class PaginatedActivities(BaseModel):
+    items: list[ApplicationActivity]
+    total: int
 
 
 def user_from_table(user: UserTable) -> User:
@@ -614,6 +680,20 @@ def mock_from_table(attempt: MockAttemptTable) -> MockAttempt:
     )
 
 
+def shared_report_from_table(r: SharedReportTable) -> SharedReport:
+    return SharedReport(
+        id=r.id,
+        userId=r.user_id,
+        sessionId=r.session_id,
+        attemptId=r.attempt_id,
+        reportType=r.report_type,
+        token=r.token,
+        hasPassword=r.password_hash is not None,
+        expiresAt=r.expires_at.isoformat() if r.expires_at else None,
+        createdAt=r.created_at.isoformat(),
+    )
+
+
 def job_from_table(job: JobApplicationTable) -> JobApplication:
     return JobApplication(
         id=job.id,
@@ -634,6 +714,17 @@ def job_from_table(job: JobApplicationTable) -> JobApplication:
         sortOrder=job.sort_order,
         createdAt=job.created_at.isoformat(),
         updatedAt=job.updated_at.isoformat(),
+    )
+
+
+def activity_from_table(act: ApplicationActivityTable) -> ApplicationActivity:
+    return ApplicationActivity(
+        id=act.id,
+        applicationId=act.application_id,
+        oldStatus=act.old_status,
+        newStatus=act.new_status,
+        note=act.note,
+        createdAt=act.created_at.isoformat(),
     )
 
 
@@ -1926,10 +2017,29 @@ def update_job(
         "linkedPrepSessionId": "linked_prep_session_id",
         "sortOrder": "sort_order",
     }
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    old_status = job.status
+    for key, value in updates.items():
         setattr(job, field_map[key], value)
     job.updated_at = utc_now()
     db.commit()
+
+    # Auto-create activity record when status changes
+    if "status" in updates and updates["status"] != old_status:
+        note = updates.get("notes")
+        note = None if note is None or not note.strip() else note.strip()
+        now = utc_now()
+        activity = ApplicationActivityTable(
+            id=str(uuid4()),
+            application_id=job.id,
+            old_status=old_status,
+            new_status=job.status,
+            note=note,
+            created_at=now,
+        )
+        db.add(activity)
+        db.commit()
+
     return job_from_table(job)
 
 
@@ -1958,6 +2068,258 @@ def delete_job(
     db.delete(job)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get(
+    "/api/users/{user_id}/jobs/{job_id}/activity",
+    response_model=PaginatedActivities,
+)
+def get_job_activities(
+    user_id: str,
+    job_id: str,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> PaginatedActivities:
+    job = db.execute(
+        select(JobApplicationTable).where(
+            JobApplicationTable.id == job_id,
+            JobApplicationTable.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job application not found",
+        )
+
+    total_q = select(func.count()).where(
+        ApplicationActivityTable.application_id == job_id
+    )
+    total = db.execute(total_q).scalar() or 0
+
+    rows = db.execute(
+        select(ApplicationActivityTable)
+        .where(ApplicationActivityTable.application_id == job_id)
+        .order_by(ApplicationActivityTable.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    ).scalars()
+
+    return PaginatedActivities(
+        items=[activity_from_table(row) for row in rows],
+        total=total,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shared Report endpoints
+# ---------------------------------------------------------------------------
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    return f"{salt}${hashlib.sha256((salt + password).encode()).hexdigest()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    salt, hsh = stored.split("$", 1)
+    return hsh == hashlib.sha256((salt + password).encode()).hexdigest()
+
+
+@app.post(
+    "/api/users/{user_id}/shared-reports",
+    response_model=SharedReport,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_shared_report(
+    user_id: str,
+    payload: CreateSharedReportRequest,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> SharedReport:
+    if payload.reportType == "prep" and payload.sessionId:
+        exists = db.execute(
+            select(InterviewSessionTable).where(
+                InterviewSessionTable.id == payload.sessionId,
+                InterviewSessionTable.user_id == user_id,
+            )
+        ).scalar_one_or_none()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Prep session not found")
+    elif payload.reportType == "mock" and payload.attemptId:
+        exists = db.execute(
+            select(MockAttemptTable).where(
+                MockAttemptTable.id == payload.attemptId,
+                MockAttemptTable.user_id == user_id,
+            )
+        ).scalar_one_or_none()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Mock attempt not found")
+    else:
+        raise HTTPException(status_code=400, detail="Must provide sessionId or attemptId")
+
+    now = utc_now()
+    expires = now + timedelta(hours=payload.expiresInHours) if payload.expiresInHours else None
+    token = secrets.token_urlsafe(32)
+    pw_hash = _hash_password(payload.password) if payload.password else None
+
+    row = SharedReportTable(
+        id=str(uuid4()),
+        user_id=user_id,
+        session_id=payload.sessionId,
+        attempt_id=payload.attemptId,
+        report_type=payload.reportType,
+        token=token,
+        password_hash=pw_hash,
+        expires_at=expires,
+        created_at=now,
+    )
+    db.add(row)
+    db.commit()
+    return shared_report_from_table(row)
+
+
+@app.get("/api/users/{user_id}/shared-reports", response_model=list[SharedReport])
+def list_shared_reports(
+    user_id: str,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> list[SharedReport]:
+    rows = db.execute(
+        select(SharedReportTable)
+        .where(SharedReportTable.user_id == user_id)
+        .order_by(SharedReportTable.created_at.desc())
+    ).scalars()
+    return [shared_report_from_table(r) for r in rows]
+
+
+@app.delete(
+    "/api/users/{user_id}/shared-reports/{report_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+def delete_shared_report(
+    user_id: str,
+    report_id: str,
+    _: UserTable = Depends(require_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    row = db.execute(
+        select(SharedReportTable).where(
+            SharedReportTable.id == report_id,
+            SharedReportTable.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Shared report not found")
+    db.delete(row)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/shared/prep/{token}", response_model=SharedReportPublic)
+def get_shared_report(
+    token: str,
+    db: Session = Depends(get_db),
+) -> SharedReportPublic:
+    row = db.execute(
+        select(SharedReportTable).where(SharedReportTable.token == token)
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Shared report not found")
+
+    if row.expires_at and row.expires_at < utc_now():
+        raise HTTPException(status_code=404, detail="This share link has expired")
+
+    if row.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Password required",
+            headers={"X-Reason": "password_required"},
+        )
+
+    prep = None
+    if row.report_type == "prep" and row.session_id:
+        session = db.execute(
+            select(InterviewSessionTable).where(
+                InterviewSessionTable.id == row.session_id,
+                InterviewSessionTable.user_id == row.user_id,
+            )
+        ).scalar_one_or_none()
+        if session:
+            prep = InterviewSession(
+                id=session.id,
+                userId="",
+                jobTitle=session.job_title,
+                company=session.company,
+                jdText="",
+                resumeText="",
+                isEstimated=session.is_estimated,
+                gapAnalysis=list(session.gap_analysis) if session.gap_analysis else [],
+                readinessScore=session.readiness_score,
+                questionBank=list(session.question_bank) if session.question_bank else [],
+                roadmap=list(session.roadmap) if session.roadmap else [],
+                extractedSkills=list(session.extracted_skills) if session.extracted_skills else [],
+                mlMatchScore=session.ml_match_score,
+                createdAt=session.created_at.isoformat(),
+            )
+
+    attempt = None
+    if row.report_type == "mock" and row.attempt_id:
+        att = db.execute(
+            select(MockAttemptTable).where(
+                MockAttemptTable.id == row.attempt_id,
+                MockAttemptTable.user_id == row.user_id,
+            )
+        ).scalar_one_or_none()
+        if att:
+            attempt = MockAttempt(
+                id=att.id,
+                sessionId=att.session_id,
+                userId="",
+                question=att.question,
+                userAnswer=att.user_answer,
+                aiScore=att.ai_score,
+                aiFeedback=att.ai_feedback,
+                createdAt=att.created_at.isoformat(),
+            )
+
+    return SharedReportPublic(
+        reportType=row.report_type,
+        createdAt=row.created_at.isoformat(),
+        prepSession=prep,
+        mockAttempt=attempt,
+    )
+
+
+@app.post("/shared/prep/{token}/verify", response_model=SharedReportPublic)
+def verify_shared_report_password(
+    token: str,
+    body: dict[str, str],
+    db: Session = Depends(get_db),
+) -> SharedReportPublic:
+    row = db.execute(
+        select(SharedReportTable).where(SharedReportTable.token == token)
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Shared report not found")
+
+    if not row.password_hash:
+        return get_shared_report(token, db)
+
+    password = body.get("password", "")
+    if not _verify_password(password, row.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    # Temporarily clear the password so get_shared_report doesn't block
+    old_hash = row.password_hash
+    row.password_hash = None
+    try:
+        return get_shared_report(token, db)
+    finally:
+        row.password_hash = old_hash
 
 
 # ---------------------------------------------------------------------------

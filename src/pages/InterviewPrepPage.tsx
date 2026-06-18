@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, Loader2, Search, Brain, Cpu, Upload, Trash2 } from "lucide-react";
+import { BookOpen, Loader2, Search, Brain, Cpu, Upload, Trash2, Share2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -21,6 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { apiUpload } from "@/lib/api";
+import { useSharedReports } from "@/lib/store";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import ShareReportModal from "@/components/ShareReportModal";
 import {
   CreateInterviewSessionInput,
   InterviewSession,
@@ -42,6 +46,7 @@ export default function InterviewPrepPage({
   jobs,
   onAddSession,
   onDeleteSession,
+  userId,
 }: InterviewPrepPageProps) {
   const [showForm, setShowForm] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
@@ -58,6 +63,8 @@ export default function InterviewPrepPage({
   const [uploadingResume, setUploadingResume] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [shareSession, setShareSession] = useState<InterviewSession | null>(null);
+  const { sharedReports, createSharedReport, deleteSharedReport, creating } = useSharedReports(userId);
   const jdFileRef = useRef<HTMLInputElement>(null);
   const resumeFileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -178,6 +185,35 @@ export default function InterviewPrepPage({
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!shareSession) return;
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Interview Prep Report", 14, 22);
+    doc.setFontSize(11);
+    doc.text(`Company: ${shareSession.company}`, 14, 32);
+    doc.text(`Job Title: ${shareSession.jobTitle}`, 14, 40);
+    doc.text(`Readiness Score: ${shareSession.readinessScore}%`, 14, 48);
+    if (shareSession.profile) {
+      doc.text(`Profile: ${shareSession.profile}`, 14, 56);
+    }
+    if (shareSession.questions && shareSession.questions.length > 0) {
+      const body = shareSession.questions.map((q, i) => [
+        `${i + 1}`,
+        q.question,
+        q.answer || "",
+        q.feedback || "",
+        `${q.scores?.overall ?? "-"}/10`,
+      ]);
+      autoTable(doc, {
+        startY: 65,
+        head: [["#", "Question", "Answer", "Feedback", "Score"]],
+        body,
+      });
+    }
+    doc.save(`prep-report-${shareSession.id.slice(0, 8)}.pdf`);
   };
 
   const gapColor: Record<string, string> = {
@@ -592,6 +628,14 @@ export default function InterviewPrepPage({
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                    onClick={(e) => { e.stopPropagation(); setShareSession(s); }}
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     onClick={(e) => { e.stopPropagation(); setSessionToDelete(s.id); }}
                   >
@@ -635,6 +679,19 @@ export default function InterviewPrepPage({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ShareReportModal
+        open={!!shareSession}
+        onOpenChange={(open) => { if (!open) setShareSession(null); }}
+        sessionId={shareSession?.id}
+        reportType="prep"
+        userId={userId}
+        reports={sharedReports}
+        creating={creating}
+        onCreateReport={createSharedReport}
+        onDeleteReport={deleteSharedReport}
+        onDownloadPdf={handleDownloadPdf}
+      />
     </div>
   );
 }
