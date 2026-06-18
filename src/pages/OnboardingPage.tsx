@@ -246,13 +246,29 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
         const currentYear = new Date().getFullYear();
 
         for (const entry of workHistory) {
-          const isFilled = entry.jobTitle.trim() || entry.company.trim() || entry.from.trim() || entry.to.trim();
+          const isFilled =
+            entry.jobTitle.trim() ||
+            entry.company.trim() ||
+            entry.from.trim() ||
+            entry.to.trim();
+
+          // If there are multiple entries, none can remain empty
+          if (!isFilled && workHistory.length > 1) {
+            return "Please fill all added work experiences or remove the empty ones.";
+          }
+
+          // Allow the single default empty card
           if (!isFilled) continue;
 
           filledCount++;
 
-          if (!entry.jobTitle.trim() || !entry.company.trim()) {
-            return "Please provide both job title and company for all work entries.";
+          if (
+            !entry.jobTitle.trim() ||
+            !entry.company.trim() ||
+            !entry.from.trim() ||
+            !entry.to.trim()
+          ) {
+            return "Please complete job title, company, start year, and end year for all work entries.";
           }
 
           if (entry.from.trim()) {
@@ -278,7 +294,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
         }
 
         if (filledCount === 0) {
-          return "Add at least one work entry with job title and company.";
+          return "Add at least one complete work entry including job title, company, start year, and end year.";
         }
 
         return null;
