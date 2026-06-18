@@ -104,3 +104,65 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
 
   return response.json() as Promise<T>;
 }
+
+
+// ── Share Report API ──────────────────────────────────────────────
+
+export interface ShareReportInput {
+  password?: string;
+  expirationDays?: number;
+}
+
+export interface ShareReportResult {
+  id: string;
+  token: string;
+  url: string;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export async function createPrepShareLink(
+  userId: string,
+  sessionId: string,
+  input: ShareReportInput,
+): Promise<ShareReportResult> {
+  return apiRequest<ShareReportResult>(`/api/users/${userId}/sessions/${sessionId}/shares`, {
+    method: "POST",
+    body: JSON.stringify({
+      password: input.password,
+      expiration_days: input.expirationDays,
+    }),
+  });
+}
+
+export async function createMockShareLink(
+  userId: string,
+  attemptId: string,
+  input: ShareReportInput,
+): Promise<ShareReportResult> {
+  return apiRequest<ShareReportResult>(`/api/users/${userId}/mocks/${attemptId}/shares`, {
+    method: "POST",
+    body: JSON.stringify({
+      password: input.password,
+      expiration_days: input.expirationDays,
+    }),
+  });
+}
+
+export interface ShareLinkItem {
+  id: string;
+  report_type: string;
+  reference_id: string;
+  token: string;
+  created_at: string;
+  expires_at: string | null;
+  password_protected: boolean;
+}
+
+export async function listUserShares(userId: string): Promise<ShareLinkItem[]> {
+  return apiRequest<ShareLinkItem[]>(`/api/users/${userId}/shares`);
+}
+
+export async function revokeShare(userId: string, shareId: string): Promise<void> {
+  return apiRequest<void>(`/api/users/${userId}/shares/${shareId}`, { method: "DELETE" });
+}

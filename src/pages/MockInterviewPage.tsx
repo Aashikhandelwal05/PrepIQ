@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { CreateMockAttemptInput, MockAttempt, InterviewSession } from "@/lib/store";
 import { apiRequest } from "@/lib/api";
+import ShareReportButton from "@/components/ShareReportButton";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -724,7 +725,14 @@ export default function MockInterviewPage({
               </div>
             </div>
           )}
-        </motion.div>
+                  <div className="flex justify-end">
+            <ShareReportButton
+              type="mock"
+              attemptId={result.id}
+              userId={userId}
+            />
+          </div>
+</motion.div>
       )}
 
       {/* Past attempts */}

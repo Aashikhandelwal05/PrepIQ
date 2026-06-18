@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { apiUpload } from "@/lib/api";
+import ShareReportButton from "@/components/ShareReportButton";
 import {
   CreateInterviewSessionInput,
   InterviewSession,
@@ -361,6 +362,11 @@ export default function InterviewPrepPage({
                 </Button>
               )}
               <Button variant="ghost" onClick={() => setActiveSession(null)}>Back to Sessions</Button>
+              <ShareReportButton
+                type="prep"
+                sessionId={activeSession.id}
+                userId={userId}
+              />
             </div>
           </div>
           <Tabs defaultValue="gap" className="space-y-4">

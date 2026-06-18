@@ -22,6 +22,8 @@ const MockInterviewPage = lazy(() => import("./pages/MockInterviewPage"));
 const JobTrackerPage = lazy(() => import("./pages/JobTrackerPage"));
 const ProgressPage = lazy(() => import("./pages/ProgressPage"));
 const MentorChatPage = lazy(() => import("./pages/MentorChatPage"));
+const SharedPrepPage = lazy(() => import("./pages/SharedPrepPage"));
+const SharedMockPage = lazy(() => import("./pages/SharedMockPage"));
 
 const queryClient = new QueryClient();
 
@@ -148,6 +150,8 @@ function AppRoutes() {
             </AppLayout>
           }
         />
+        <Route path="/shared/prep/:token" element={<SharedPrepPage />} />
+        <Route path="/shared/mock/:token" element={<SharedMockPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
