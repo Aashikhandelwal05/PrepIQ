@@ -28,6 +28,10 @@ async function parseError(response: Response): Promise<string> {
     if (typeof payload?.detail === "string") {
       return payload.detail;
     }
+    // Handle array of validation errors from FastAPI
+    if (Array.isArray(payload?.detail)) {
+      return payload.detail.map((err: { msg?: string }) => err.msg || JSON.stringify(err)).join(", ");
+    }
   } catch {
     // Ignore parse failures and fall back to status text.
   }
@@ -46,10 +50,21 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+    });
+  } catch (error) {
+    // Network error - backend might not be running
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Unable to connect to server. Please ensure the backend is running on port 8000."
+      );
+    }
+    throw new Error(error instanceof Error ? error.message : "Network request failed");
+  }
 
   if (!response.ok) {
     if (response.status === 401 && !path.includes("/api/auth/")) {
