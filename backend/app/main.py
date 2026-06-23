@@ -1533,7 +1533,18 @@ async def startup() -> None:
         except Exception as e:
             logging.getLogger(__name__).info(f"Migration job_applications sort_order ignored: {e}")
 
-        # 5. mentor_chat_history data migration
+        # 5. interview_sessions Table is_estimated column
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE interview_sessions ADD COLUMN is_estimated BOOLEAN DEFAULT FALSE"
+                    )
+                )
+        except Exception as e:
+            logging.getLogger(__name__).info(f"Migration interview_sessions is_estimated ignored: {e}")
+
+        # 6. mentor_chat_history data migration
         try:
             with engine.begin() as conn:
                 res = conn.execute(
