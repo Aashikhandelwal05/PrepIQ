@@ -1,4 +1,4 @@
-import { Suspense, lazy, Component } from "react";
+import { Suspense, lazy, Component, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
@@ -87,15 +87,49 @@ interface ProtectedRouteProps {
   children: ReactNode;
 }
 
+/** Returns true when the error is a pure network failure (backend unreachable). */
+function isNetworkError(msg: string | null): boolean {
+  if (!msg) return false;
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("failed to fetch") ||
+    lower.includes("network request failed") ||
+    lower.includes("networkerror") ||
+    lower.includes("load failed")
+  );
+}
+
 function ProtectedRoute({ hydrated, user, logout, resourceErrorMessage, children }: ProtectedRouteProps) {
+  const [dismissed, setDismissed] = useState(false);
   if (!hydrated) return <RouteFallback />;
   if (!user) return <Navigate to="/login" replace />;
+
+  const networkDown = isNetworkError(resourceErrorMessage);
+  const showBanner = !dismissed && !!resourceErrorMessage;
+
   return (
     <AppLayout onLogout={logout}>
       <div className="space-y-4">
-        {resourceErrorMessage && (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            Unable to refresh some workspace data. {resourceErrorMessage}
+        {showBanner && (
+          <div
+            className={`rounded-xl border p-3 text-sm flex items-start justify-between gap-3 ${
+              networkDown
+                ? "border-warning/30 bg-warning/10 text-warning"
+                : "border-destructive/30 bg-destructive/10 text-destructive"
+            }`}
+          >
+            <span>
+              {networkDown
+                ? "Could not reach the server — showing cached data. Check your connection or ensure the backend is running."
+                : `Some data failed to load: ${resourceErrorMessage}`}
+            </span>
+            <button
+              onClick={() => setDismissed(true)}
+              className="shrink-0 opacity-60 hover:opacity-100 transition-opacity text-inherit"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
           </div>
         )}
         {children}
