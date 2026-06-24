@@ -12,6 +12,7 @@ import secrets
 import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
@@ -535,30 +536,37 @@ class JobApplication(BaseModel):
     updatedAt: str
 
 
-class CreateJobApplicationRequest(BaseModel):
-    companyName: str
-    jobTitle: str
-    jobUrl: str
-    status: JobStatus
-
-    @field_validator("companyName", "jobTitle")
+class JobApplicationBaseRequest(BaseModel):
+    @field_validator("companyName", "jobTitle", check_fields=False)
     @classmethod
-    def non_empty(cls, v: str) -> str:
+    def non_empty(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
         stripped = v.strip()
         if not stripped:
             raise ValueError("must not be empty or whitespace-only")
         return stripped
 
-    @field_validator("jobUrl")
+    @field_validator("jobUrl", check_fields=False)
     @classmethod
-    def valid_url(cls, v: str) -> str:
+    def valid_url(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
         stripped = v.strip()
-        if not stripped.startswith(("http://", "https://")):
+        parsed = urlparse(stripped)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("must be a valid HTTP or HTTPS URL")
         return stripped
 
 
-class UpdateJobApplicationRequest(BaseModel):
+class CreateJobApplicationRequest(JobApplicationBaseRequest):
+    companyName: str
+    jobTitle: str
+    jobUrl: str
+    status: JobStatus
+
+
+class UpdateJobApplicationRequest(JobApplicationBaseRequest):
     companyName: str | None = None
     jobTitle: str | None = None
     jobUrl: str | None = None

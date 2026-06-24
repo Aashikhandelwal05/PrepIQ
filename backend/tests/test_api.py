@@ -420,6 +420,44 @@ class PrepIQApiTestCase(unittest.TestCase):
             "cannot be empty or whitespace-only", payload_job["detail"][0]["msg"]
         )
 
+    def test_update_job_validation_rejects_invalid_fields(self) -> None:
+        user_id, headers = self.create_account()
+
+        create_response = self.client.post(
+            f"/api/users/{user_id}/jobs",
+            headers=headers,
+            json={
+                "companyName": "PrepIQ",
+                "jobTitle": "Frontend Engineer",
+                "jobUrl": "https://example.com/jobs/123",
+                "status": "Applied",
+            },
+        )
+        self.assertEqual(create_response.status_code, 201, create_response.text)
+        job_id = create_response.json()["id"]
+
+        invalid_cases = [
+            ("jobTitle", {"jobTitle": "   "}),
+            ("companyName", {"companyName": "   "}),
+            ("jobUrl", {"jobUrl": "not-a-url"}),
+        ]
+
+        for field_name, payload in invalid_cases:
+            response = self.client.patch(
+                f"/api/users/{user_id}/jobs/{job_id}",
+                headers=headers,
+                json=payload,
+            )
+            self.assertEqual(response.status_code, 422, response.text)
+            detail = response.json()["detail"]
+            self.assertTrue(
+                any(
+                    item.get("loc") and item["loc"][-1] == field_name
+                    for item in detail
+                ),
+                response.text,
+            )
+
         res_empty_company = self.client.post(
             f"/api/users/{user_id}/sessions",
             headers=headers,
