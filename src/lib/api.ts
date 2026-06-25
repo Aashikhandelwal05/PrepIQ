@@ -1,4 +1,12 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_PORT = (() => {
+  try {
+    return new URL(API_BASE_URL).port || "80";
+  }
+  catch{
+    return "8000";
+  }
+}) ();
 export const SESSION_KEY = "prepiq_session";
 export const AUTH_EXPIRED_EVENT = "prepiq:auth-expired";
 
@@ -60,7 +68,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     // Network error - backend might not be running
     if (error instanceof TypeError) {
       throw new Error(
-        "Unable to connect to server. Please ensure the backend is running on port 8000."
+         `Unable to connect to server. Please ensure the backend is running on port ${API_PORT}.`
       );
     }
     throw new Error(error instanceof Error ? error.message : "Network request failed");
@@ -91,12 +99,23 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+  }
+  catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        `Unable to connect to server. Please ensure the backend is running on port ${API_PORT}.`
+      );
+    }
+    throw new Error(error instanceof Error ? error.message : "Network request failed");
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));
