@@ -158,3 +158,163 @@
     @apply bg-card/80 backdrop-blur-xl border border-border/50;
   }
 }
+
+/* ==========================================
+   Responsive Enhancements
+   ========================================== */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+}
+
+/* Responsive Typography */
+@layer utilities {
+  .responsive-heading {
+    font-size: clamp(1.75rem, 4vw, 4rem);
+    line-height: 1.1;
+  }
+
+  .responsive-subheading {
+    font-size: clamp(1rem, 2vw, 1.5rem);
+    line-height: 1.5;
+  }
+
+  .responsive-text {
+    font-size: clamp(0.875rem, 1vw, 1rem);
+  }
+}
+
+/* Mobile First Container */
+@layer components {
+  .container-responsive {
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .container-responsive {
+      max-width: 640px;
+      padding-inline: 1.5rem;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .container-responsive {
+      max-width: 768px;
+      padding-inline: 2rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container-responsive {
+      max-width: 1024px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .container-responsive {
+      max-width: 1280px;
+    }
+  }
+}
+
+/* Tablet Adjustments */
+@media (max-width: 1024px) {
+  body {
+    font-size: 15px;
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+  :root {
+    --radius: 0.625rem;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  .glass {
+    backdrop-filter: blur(10px);
+  }
+
+  h1 {
+    font-size: clamp(2rem, 6vw, 3rem);
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 5vw, 2.25rem);
+  }
+
+  h3 {
+    font-size: clamp(1.25rem, 4vw, 1.75rem);
+  }
+}
+
+/* Small Mobile Devices */
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
+
+  .container-responsive {
+    padding-inline: 0.75rem;
+  }
+
+  .shadow-card,
+  .shadow-elevated {
+    box-shadow: 0 2px 12px -2px hsl(0 0% 0% / 0.08);
+  }
+}
+
+/* Responsive Grid Helpers */
+@layer utilities {
+  .grid-auto-fit {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
+  .grid-auto-fill {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+  }
+}
+
+/* Touch-Friendly Elements */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+}
+

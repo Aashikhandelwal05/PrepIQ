@@ -1,0 +1,117 @@
+{
+  "187": {
+    "author": "Akshith <akshithdonthi2007@gmail.com>",
+    "title": "feat: add chat history toggle and premium ui in ai mentor",
+    "files": [
+      ".gitignore",
+      "backend/app/main.py",
+      "backend/app/ml.py",
+      "backend/tests/test_api.py",
+      "src/App.tsx",
+      "src/components/AppSidebar.tsx",
+      "src/lib/store.ts",
+      "src/pages/MentorChatPage.tsx"
+    ],
+    "merge": "CLEAN",
+    "ruff": "PASS",
+    "pytest": "PASS",
+    "eslint": "PASS",
+    "tsc": "PASS"
+  },
+  "186": {
+    "author": "Ashish Pal <ashishpal2804@gmail.com>",
+    "title": "ux: add loading state to resume/JD text areas during document extraction",
+    "files": [
+      "src/pages/InterviewPrepPage.tsx"
+    ],
+    "merge": "CLEAN",
+    "ruff": "N/A",
+    "pytest": "N/A",
+    "eslint": "PASS",
+    "tsc": "PASS"
+  },
+  "185": {
+    "author": "Akshith <akshithdonthi2007@gmail.com>",
+    "title": "feat: implement ChatGPT-style mentor chat history",
+    "files": [
+      ".gitignore",
+      "backend/app/main.py",
+      "src/App.tsx",
+      "src/components/AppSidebar.tsx",
+      "src/pages/MentorChatPage.tsx"
+    ],
+    "merge": "CLEAN",
+    "ruff": "PASS",
+    "pytest": "PASS",
+    "eslint": "PASS",
+    "tsc": "PASS"
+  },
+  "184": {
+    "author": "Gokul Ram K <gokul.ram.kannan210905@gmail.com>",
+    "title": "fix: resolve backend lint issues",
+    "files": [
+      "backend/app/main.py",
+      "backend/requirements.txt"
+    ],
+    "merge": "CLEAN",
+    "ruff": "PASS",
+    "pytest": "FAIL:\n['-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html', '=========================== short test summary info ===========================', 'ERROR backend/tests/test_api.py', '!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!', '========================= 1 warning, 1 error in 0.99s =========================']",
+    "eslint": "N/A",
+    "tsc": "N/A"
+  },
+  "183": {
+    "author": "Xenon010101 <xenon010101@users.noreply.github.com>",
+    "title": "Fix: Backend Job Tracker API lacks server-side validation for job application inputs",
+    "files": [
+      "backend/app/main.py"
+    ],
+    "merge": "CLEAN",
+    "ruff": "PASS",
+    "pytest": "PASS",
+    "eslint": "N/A",
+    "tsc": "N/A"
+  },
+  "182": {
+    "author": "Satyam Kulkarni <kulkarnisatyam666@gmail.com>",
+    "title": "fix(security): sanitize LLM inputs and enforce length limits",
+    "files": [
+      "backend/app/main.py",
+      "backend/app/sanitize.py",
+      "backend/tests/test_sanitize.py"
+    ],
+    "merge": "CLEAN",
+    "ruff": "FAIL:\nI001 [*] Import block is un-sorted or un-formatted\n  --> backend\\app\\main.py:1:1\n   |\n 1 | / from __future__ import annotations\n 2 | |\n 3 | | import asyncio\n 4 | | import base64\n 5 | | import hashlib\n 6 | | import hmac\n 7 | | import json\n 8 | | import logging\n 9 | | import os\n10 | | import re\n11 | | import secrets\n12 | | from datetime import datetime, timedelta, timezone\n13 | | from typing import Any, Literal\n14 | | from uuid import uuid4\n15 | |\n16 | | import httpx\n17 | | from fastapi import (\n18 | |     Depends,\n19 | |     FastAPI,\n20 | |     Header,\n21 | |     HTTPException,\n22 | |     Query,\n23 | |     Request,\n24 | |     Response,\n25 | |     status,\n26 | | )\n27 | |\n28 | | from app.sanitize import (\n29 | |     ANSWER_MAX_LENGTH,\n30 | |     JD_MAX_LENGTH,\n31 | |     QUESTION_MAX_LENGTH,\n32 | |     RESUME_MAX_LENGTH,\n33 | |     sanitize_and_wrap,\n34 | | )\n35 | | from fastapi import HTTPException\n36 | |\n37 | | from fastapi.middleware.cors import CORSMiddleware\n38 | | from pydantic import BaseModel, Field, field_validator\n39 | | from sqlalchemy import (\n40 | |     JSON,\n41 | |     Boolean,\n42 | |     DateTime,\n43 | |     Integer,\n44 | |     String,\n45 | |     Text,\n46 | |     create_engine,\n47 | |     delete,\n48 | |     func,\n49 | |     select,\n50 | | )\n51 | | from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker\n52 | |\n53 | | from .ml import analyze_confidence, compute_match_score, extract_skills\n   | |_______________________________________________________________________^\n54 |\n55 |   logger = logging.getLogger(__name__)\n   |\nhelp: Organize imports\n\nF811 [*] Redefinition of unused `HTTPException` from line 21\n  --> backend\\app\\main.py:35:21\n   |\n33 |     sanitize_and_wrap,\n34 | )\n35 | from fastapi import HTTPException\n   |                     ^^^^^^^^^^^^^ `HTTPException` redefined here\n36 |\n37 | from fastapi.middleware.cors import CORSMiddleware\n   |\n  ::: backend\\app\\main.py:21:5\n   |\n19 |     FastAPI,\n20 |     Header,\n21 |     HTTPException,\n   |     ------------- previous definition of `HTTPException` here\n22 |     Query,\n23 |     Request,\n   |\nhelp: Remove definition: `HTTPException`\n\nW292 [*] No newline at end of file\n  --> backend\\app\\sanitize.py:40:49\n   |\n39 | def sanitize_and_wrap(text: str) -> str:\n40 |     return wrap_user_input(sanitize_input(text))\n   |                                                 ^\n   |\nhelp: Add trailing newline\n\nI001 [*] Import block is un-sorted or un-formatted\n  --> backend\\tests\\test_sanitize.py:1:1\n   |\n 1 | / import pytest\n 2 | | from app.sanitize import (\n 3 | |     ANSWER_MAX_LENGTH,\n 4 | |     JD_MAX_LENGTH,\n 5 | |     QUESTION_MAX_LENGTH,\n 6 | |     RESUME_MAX_LENGTH,\n 7 | |     sanitize_and_wrap,\n 8 | |     sanitize_input,\n 9 | | )\n10 | | from app.main import generate_session_payload, evaluate_mock_attempt\n   | |____________________________________________________________________^\n   |\nhelp: Organize imports\n\nF821 Undefined name `HTTPException`\n  --> backend\\tests\\test_sanitize.py:32:24\n   |\n30 | @pytest.mark.asyncio\n31 | async def test_generate_session_payload_rejects_oversized_resume():\n32 |     with pytest.raises(HTTPException) as exc:\n   |                        ^^^^^^^^^^^^^\n33 |         await generate_session_payload(\n34 |             job_title=\"Developer\",\n   |\n\nF821 Undefined name `HTTPException`\n  --> backend\\tests\\test_sanitize.py:45:24\n   |\n43 | @pytest.mark.asyncio\n44 | async def test_generate_session_payload_rejects_oversized_jd():\n45 |     with pytest.raises(HTTPException) as exc:\n   |                        ^^^^^^^^^^^^^\n46 |         await generate_session_payload(\n47 |             job_title=\"Developer\",\n   |\n\nF821 Undefined name `HTTPException`\n  --> backend\\tests\\test_sanitize.py:58:24\n   |\n56 | @pytest.mark.asyncio\n57 | async def test_evaluate_mock_attempt_rejects_oversized_question():\n58 |     with pytest.raises(HTTPException) as exc:\n   |                        ^^^^^^^^^^^^^\n59 |         await evaluate_mock_attempt(\n60 |             question=\"a\" * (QUESTION_MAX_LENGTH + 1),\n   |\n\nF821 Undefined name `HTTPException`\n  --> backend\\tests\\test_sanitize.py:69:24\n   |\n67 | @pytest.mark.asyncio\n68 | async def test_evaluate_mock_attempt_rejects_oversized_answer():\n69 |     with pytest.raises(HTTPException) as exc:\n   |                        ^^^^^^^^^^^^^\n70 |         await evaluate_mock_attempt(\n71 |             question=\"Tell me about yourself.\",\n   |\n\nW292 [*] No newline at end of file\n  --> backend\\tests\\test_sanitize.py:75:40\n   |\n73 |         )\n74 |\n75 |     assert exc.value.status_code == 400\n   |                                        ^\n   |\nhelp: Add trailing newline\n\nFound 9 errors.\n[*] 5 fixable with the `--fix` option.",
+    "pytest": "FAIL:\n['-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html', '=========================== short test summary info ===========================', 'ERROR backend/tests/test_api.py', '!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!', '========================= 1 warning, 1 error in 1.19s =========================']",
+    "eslint": "N/A",
+    "tsc": "N/A"
+  },
+  "173": {
+    "author": "Amna Sehgal <amnasehgal211@gmail.com>",
+    "title": "fix: restore .env.example contents",
+    "files": [
+      ".env.example",
+      "src/components/StatCard.tsx",
+      "src/pages/DashboardPage.tsx"
+    ],
+    "merge": "CLEAN",
+    "ruff": "N/A",
+    "pytest": "N/A",
+    "eslint": "PASS",
+    "tsc": "PASS"
+  },
+  "172": {
+    "author": "Pragya Gaur <63705141+pragya0129@users.noreply.github.com>",
+    "title": "fix: update CommandPalette effect dependency",
+    "files": [
+      "src/App.tsx",
+      "src/components/AppSidebar.tsx",
+      "src/components/CommandPalette.tsx",
+      "src/data/commandRoutes.ts"
+    ],
+    "merge": "CLEAN",
+    "ruff": "N/A",
+    "pytest": "N/A",
+    "eslint": "PASS",
+    "tsc": "PASS"
+  }
+}

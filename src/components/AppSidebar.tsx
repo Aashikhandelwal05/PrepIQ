@@ -10,6 +10,7 @@ import {
   Sun,
   Moon,
   SunMoon,
+  Mail,
   Bot,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -35,6 +36,7 @@ const navItems = [
   { title: "Job Tracker", url: "/job-tracker", icon: Briefcase },
   { title: "Progress", url: "/progress", icon: TrendingUp },
   { title: "AI Mentor Chat", url: "/mentor-chat", icon: Bot },
+  { title: "Contact Us", url: "/contact", icon: Mail },
 ];
 
 interface AppSidebarProps {
@@ -79,33 +81,23 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
 
       <SidebarContent>
         <div className="px-2 py-2 hidden md:block">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="Search"
-                onClick={() => {
-                  window.dispatchEvent(
-                    new KeyboardEvent("keydown", {
-                      key: "k",
-                      ctrlKey: true,
-                    })
-                  );
-                }}
-              >
-                <BookOpen className="h-4 w-4 shrink-0" />
+          <button
+            onClick={() => {
+              window.dispatchEvent(
+                new KeyboardEvent("keydown", {
+                  key: "k",
+                  ctrlKey: true,
+                }),
+              );
+            }}
+            className="w-full flex items-center justify-between rounded-xl border border-border/60 bg-background/40 px-4 py-3 text-sm text-muted-foreground transition-all duration-200 hover:bg-white/5 hover:border-white/10 hover:text-foreground"
+          >
+            <span>Search pages...</span>
 
-                {!collapsed && (
-                  <>
-                    <span>Search pages...</span>
-
-                    <kbd className="ml-auto rounded border border-border bg-muted px-2 py-0.5 text-xs">
-                      Ctrl K
-                    </kbd>
-                  </>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+            <kbd className="rounded border border-border bg-muted px-2 py-0.5 text-xs">
+              Ctrl K
+            </kbd>
+          </button>
         </div>
         <SidebarGroup>
           <SidebarGroupContent>
@@ -138,10 +130,8 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
 
       <SidebarFooter className="border-t border-border p-2">
         <SidebarMenu>
-
           {!collapsed && (
             <div className="px-3 pb-3 mb-2 border-b border-border/60 flex flex-col gap-2">
-
               <NavLink
                 to="/privacy-policy"
                 className="text-[12px] text-muted-foreground hover:text-primary underline underline-offset-4 transition-colors"
@@ -155,7 +145,6 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
               >
                 Terms & Conditions
               </NavLink>
-
             </div>
           )}
           <SidebarMenuItem>

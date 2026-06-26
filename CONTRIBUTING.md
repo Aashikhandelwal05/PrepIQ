@@ -73,10 +73,12 @@ Copy-Item .env.example .env
 For simple manual setup, update `.env` to use SQLite:
 
 ```env
-DATABASE_URL=sqlite:///./backend/local.db
+DATABASE_URL=sqlite:///./local.db
 APP_SECRET=replace-with-a-long-random-secret
 VITE_API_BASE_URL=
 ```
+
+> **Note:** The path `sqlite:///./local.db` is relative to the `backend/` directory, which is the working directory when you run uvicorn with `cd backend && python -m uvicorn ...`.
 
 Install frontend dependencies:
 
@@ -119,6 +121,16 @@ npm run dev
 ```
 
 Make sure `.env` contains a strong `APP_SECRET` before you start the backend. The app uses it to sign and verify auth tokens.
+
+## Test credentials
+
+When the backend starts for the first time it seeds the following accounts for local testing:
+
+| Email | Password |
+|---|---|
+| `user0@example.com` — `user9@example.com` | `password123` |
+
+You can also create your own account via the signup page or the `/api/auth/signup` endpoint.
 
 ## Development guidelines
 

@@ -4,6 +4,8 @@ import { UserCircle, CheckCircle, AlertCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CareerProfile, User } from "@/lib/store";
+import { useStreak } from "@/hooks/use-streak";
+import { Trophy } from "lucide-react";
 
 interface CareerDNAPageProps {
   user: User;
@@ -12,6 +14,7 @@ interface CareerDNAPageProps {
 
 export default function CareerDNAPage({ user, profile }: CareerDNAPageProps) {
   const navigate = useNavigate();
+  const { data: streakData } = useStreak(user.id);
 
   if (!profile || !profile.onboardingComplete) {
     return (
@@ -125,6 +128,31 @@ export default function CareerDNAPage({ user, profile }: CareerDNAPageProps) {
           </Section>
         )}
       </div>
+
+      {/* Badges Grid */}
+      {streakData && (
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-card">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            <h3 className="text-sm font-semibold text-foreground">Achievement Badges</h3>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            {streakData.badges.map((badge) => (
+              <div
+                key={badge.id}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${
+                  badge.unlocked
+                    ? "bg-yellow-500/10 border-yellow-500/30 text-foreground"
+                    : "bg-secondary/30 border-border text-muted-foreground opacity-50"
+                }`}
+              >
+                <Trophy className={`w-6 h-6 ${badge.unlocked ? "text-yellow-500" : "text-muted-foreground"}`} />
+                <p className="text-xs font-medium leading-tight">{badge.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Button onClick={() => navigate("/onboarding")} variant="outline">
         Edit Profile <ArrowRight className="w-4 h-4 ml-1" />

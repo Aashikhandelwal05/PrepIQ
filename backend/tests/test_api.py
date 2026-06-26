@@ -25,15 +25,17 @@ class PrepIQApiTestCase(unittest.TestCase):
 
         # Mock sentence-transformers to avoid downloading models from Hugging Face Hub
         from backend.app import ml
+
         class MockSentenceTransformer:
             def encode(self, sentences, *args, **kwargs):
                 import numpy as np
+
                 return np.array([[1.0, 0.0], [1.0, 0.0]])
+
         ml._sentence_transformer_model = MockSentenceTransformer()
 
         cls.client_cm = TestClient(app)
         cls.client = cls.client_cm.__enter__()
-
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -43,7 +45,7 @@ class PrepIQApiTestCase(unittest.TestCase):
         email = f"test-{uuid4().hex[:8]}@example.com"
         response = self.client.post(
             "/api/auth/signup",
-            json={"name": "Test User", "email": email, "password": "password123"},
+            json={"name": "Test User", "email": email, "password": "Password123!"},
         )
         self.assertEqual(response.status_code, 201, response.text)
         payload = response.json()
@@ -203,13 +205,13 @@ class PrepIQApiTestCase(unittest.TestCase):
         email = f"login-{uuid4().hex[:8]}@example.com"
         signup = self.client.post(
             "/api/auth/signup",
-            json={"name": "Login User", "email": email, "password": "password123"},
+            json={"name": "Login User", "email": email, "password": "Password123!"},
         )
         self.assertEqual(signup.status_code, 201, signup.text)
 
         login = self.client.post(
             "/api/auth/login",
-            json={"email": email, "password": "password123"},
+            json={"email": email, "password": "Password123!"},
         )
         self.assertEqual(login.status_code, 200, login.text)
         token = login.json()["token"]
@@ -230,12 +232,12 @@ class PrepIQApiTestCase(unittest.TestCase):
         email = f"wrongpw-{uuid4().hex[:8]}@example.com"
         self.client.post(
             "/api/auth/signup",
-            json={"name": "Wrong PW User", "email": email, "password": "password123"},
+            json={"name": "Wrong PW User", "email": email, "password": "Password123!"},
         )
 
         response = self.client.post(
             "/api/auth/login",
-            json={"email": email, "password": "wrongpassword"},
+            json={"email": email, "password": "WrongPassword123!"},
         )
 
         self.assertEqual(response.status_code, 401, response.text)
@@ -533,6 +535,7 @@ class PrepIQApiTestCase(unittest.TestCase):
             },
         )
         self.assertNotEqual(res.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()

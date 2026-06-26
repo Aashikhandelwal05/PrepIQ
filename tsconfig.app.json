@@ -24,12 +24,12 @@
     "skipLibCheck": true,
     "strict": false,
     "target": "ES2020",
-    "types": [
-      "vitest/globals"
-    ],
     "useDefineForClassFields": true
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "src/test"
   ]
 }

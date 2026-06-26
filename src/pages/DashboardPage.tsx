@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/StatCard";
 import { User, CareerProfile, InterviewSession, MockAttempt, JobApplication } from "@/lib/store";
+import { useStreak } from "@/hooks/use-streak";
+import { Flame } from "lucide-react";
 
 interface DashboardPageProps {
   user: User;
@@ -30,6 +32,7 @@ const ONBOARDING_DISMISSED_KEY = "prepiq_onboarding_dismissed";
 
 export default function DashboardPage({ user, profile, sessions, mocks, jobs }: DashboardPageProps) {
   const navigate = useNavigate();
+  const { data: streakData } = useStreak(user.id);
 
   const [isDismissed, setIsDismissed] = useState(() => {
     if (typeof window !== "undefined") {
@@ -207,6 +210,34 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
           tooltip="Average score across all mock interviews"
         />
       </div>
+
+{/* Streak Widget */}
+{streakData && (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="rounded-2xl bg-card border border-border p-5 shadow-card"
+  >
+    <div className="flex items-center gap-2 mb-4">
+      <Flame className="w-5 h-5 text-orange-500" />
+      <h2 className="text-lg font-semibold text-foreground">Your Streak</h2>
+    </div>
+    <div className="flex gap-6">
+      <div className="text-center">
+        <p className="text-3xl font-bold text-orange-500">{streakData.currentStreak}</p>
+        <p className="text-xs text-muted-foreground mt-1">Current Streak</p>
+      </div>
+      <div className="text-center">
+        <p className="text-3xl font-bold text-foreground">{streakData.longestStreak}</p>
+        <p className="text-xs text-muted-foreground mt-1">Longest Streak</p>
+      </div>
+      <div className="text-center">
+        <p className="text-3xl font-bold text-foreground">{streakData.todayActivityCount}</p>
+        <p className="text-xs text-muted-foreground mt-1">Today's Activities</p>
+      </div>
+    </div>
+  </motion.div>
+)}
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">

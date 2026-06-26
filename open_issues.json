@@ -1,0 +1,788 @@
+[
+  {
+    "number": 166,
+    "title": "[Feature]: Redesign the 404 Page Not Found",
+    "assignees": [
+      {
+        "login": "pragya0129"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-28T09:48:53Z",
+    "author": {
+      "login": "pragya0129"
+    }
+  },
+  {
+    "number": 162,
+    "title": "[Feature]: Add chat history visibility toggle for AI Mentor Chat",
+    "assignees": [
+      {
+        "login": "akshith0107"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:intermediate"
+      }
+    ],
+    "createdAt": "2026-05-27T13:41:51Z",
+    "author": {
+      "login": "akshith0107"
+    }
+  },
+  {
+    "number": 155,
+    "title": "[Feature]: Show answer and AI feedback in Past Attempts on Mock Interview page",
+    "assignees": [
+      {
+        "login": "riddhimagupta2"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-27T08:48:03Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 154,
+    "title": "[Feature]: Add onboarding checklist to guide new users",
+    "assignees": [
+      {
+        "login": "VIDYANKSHINI"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:intermediate"
+      }
+    ],
+    "createdAt": "2026-05-27T08:46:07Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 151,
+    "title": "[Refactor]: Use require_current_user dependency on /api/auth/me endpoint",
+    "assignees": [
+      {
+        "login": "VIDYANKSHINI"
+      }
+    ],
+    "labels": [
+      {
+        "name": "good first issue"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-27T08:11:21Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 150,
+    "title": " [Bug]: Missing input validation on Interview Prep session creation endpoint",
+    "assignees": [
+      {
+        "login": "VIDYANKSHINI"
+      }
+    ],
+    "labels": [
+      {
+        "name": "bug"
+      },
+      {
+        "name": "good first issue"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-27T08:10:34Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 149,
+    "title": "[UX]: Add loading state to resume/JD text areas during document extraction",
+    "assignees": [
+      {
+        "login": "omnipotentchaos"
+      }
+    ],
+    "labels": [
+      {
+        "name": "good first issue"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-27T08:09:33Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 148,
+    "title": "[UX]: Add descriptive tooltips to dashboard StatCards",
+    "assignees": [
+      {
+        "login": "amna-sehgal"
+      }
+    ],
+    "labels": [
+      {
+        "name": "good first issue"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-27T08:08:37Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 145,
+    "title": "[Bug]: Graduation Year field accepts invalid non-numeric input",
+    "assignees": [
+      {
+        "login": "Manas-5461X"
+      }
+    ],
+    "labels": [
+      {
+        "name": "bug"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-26T16:45:13Z",
+    "author": {
+      "login": "Manas-5461X"
+    }
+  },
+  {
+    "number": 142,
+    "title": "[Bug]: Gap analysis displays inferred/preset skill assessment without sufficient user input",
+    "assignees": [
+      {
+        "login": "shivani-d-13"
+      }
+    ],
+    "labels": [
+      {
+        "name": "bug"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:intermediate"
+      }
+    ],
+    "createdAt": "2026-05-26T15:30:46Z",
+    "author": {
+      "login": "shivani-d-13"
+    }
+  },
+  {
+    "number": 141,
+    "title": "[Feature]: Add global command palette with Ctrl + K navigation",
+    "assignees": [
+      {
+        "login": "pragya0129"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:intermediate"
+      }
+    ],
+    "createdAt": "2026-05-26T15:08:23Z",
+    "author": {
+      "login": "pragya0129"
+    }
+  },
+  {
+    "number": 140,
+    "title": "[Feature]: Feature: Add Context-Aware AI Mentor Chat for Personalized Career Guidance",
+    "assignees": [
+      {
+        "login": "akshith0107"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:advanced"
+      }
+    ],
+    "createdAt": "2026-05-26T09:06:48Z",
+    "author": {
+      "login": "akshith0107"
+    }
+  },
+  {
+    "number": 138,
+    "title": "[Feature]: Add Privacy Policy Page",
+    "assignees": [
+      {
+        "login": "pragya0129"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-26T07:55:49Z",
+    "author": {
+      "login": "pragya0129"
+    }
+  },
+  {
+    "number": 134,
+    "title": "[Bug]: Profile email can diverge from authenticated user identity causing inconsistent account state",
+    "assignees": [
+      {
+        "login": "GOKULRAM-K"
+      }
+    ],
+    "labels": [
+      {
+        "name": "bug"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-26T03:50:30Z",
+    "author": {
+      "login": "GOKULRAM-K"
+    }
+  },
+  {
+    "number": 122,
+    "title": "Fix: Migrate to TanStack Query (React Query)",
+    "assignees": [
+      {
+        "login": "Kanwaljeet1"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:advanced"
+      }
+    ],
+    "createdAt": "2026-05-24T08:59:13Z",
+    "author": {
+      "login": "Kanwaljeet1"
+    }
+  },
+  {
+    "number": 114,
+    "title": "[Feature]: Implement Redis caching layer with intelligent TTL strategy for LLM responses and ML computations",
+    "assignees": [
+      {
+        "login": "Mayur-Shashidhar"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:advanced"
+      }
+    ],
+    "createdAt": "2026-05-22T10:30:53Z",
+    "author": {
+      "login": "Mayur-Shashidhar"
+    }
+  },
+  {
+    "number": 100,
+    "title": "[Feature]: Modernize dashboard UI/UX for improved visual consistency and professional design polish",
+    "assignees": [
+      {
+        "login": "vishalpatil-45"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:advanced"
+      }
+    ],
+    "createdAt": "2026-05-20T17:14:09Z",
+    "author": {
+      "login": "vishalpatil-45"
+    }
+  },
+  {
+    "number": 92,
+    "title": "[Feature]: Add forgot password and password reset flow",
+    "assignees": [
+      {
+        "login": "anshukumarmishra"
+      }
+    ],
+    "labels": [
+      {
+        "name": "good first issue"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      },
+      {
+        "name": "type:feature"
+      }
+    ],
+    "createdAt": "2026-05-20T09:32:23Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 88,
+    "title": "[Feature]: Replace TF-IDF with semantic embeddings for resume-JD matching",
+    "assignees": [
+      {
+        "login": "tanishksinha"
+      }
+    ],
+    "labels": [
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:advanced"
+      },
+      {
+        "name": "AI/ML"
+      },
+      {
+        "name": "type:feature"
+      }
+    ],
+    "createdAt": "2026-05-20T09:28:28Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 86,
+    "title": "[Security]: Add input sanitization to prevent prompt injection in LLM calls",
+    "assignees": [
+      {
+        "login": "PRODHOSH"
+      }
+    ],
+    "labels": [
+      {
+        "name": "bug"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "security"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:critical"
+      },
+      {
+        "name": "AI/ML"
+      }
+    ],
+    "createdAt": "2026-05-20T09:26:33Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 71,
+    "title": "[Bug]: Silent Local SQLite Fallback Risk in Production Environment",
+    "assignees": [
+      {
+        "login": "skhazi123"
+      }
+    ],
+    "labels": [
+      {
+        "name": "bug"
+      },
+      {
+        "name": "difficulty: medium"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:intermediate"
+      }
+    ],
+    "createdAt": "2026-05-19T07:10:04Z",
+    "author": {
+      "login": "skhazi123"
+    }
+  },
+  {
+    "number": 69,
+    "title": "[Feature]: [Feature]: AI Voice Mock Interview System",
+    "assignees": [
+      {
+        "login": "yukthiru"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:critical"
+      }
+    ],
+    "createdAt": "2026-05-18T18:59:11Z",
+    "author": {
+      "login": "yukthiru"
+    }
+  },
+  {
+    "number": 61,
+    "title": "[Feature]: Add \"I am a Fresher\" toggle to skip mandatory Work Experience in Career DNA",
+    "assignees": [
+      {
+        "login": "simranbali-ace04"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "good first issue"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "difficulty: easy"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level:beginner"
+      }
+    ],
+    "createdAt": "2026-05-17T18:08:29Z",
+    "author": {
+      "login": "simranbali-ace04"
+    }
+  },
+  {
+    "number": 48,
+    "title": "[Feature]: Add onboarding draft autosave",
+    "assignees": [
+      {
+        "login": "haripri0109r"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "help wanted"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "difficulty: medium"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level2"
+      }
+    ],
+    "createdAt": "2026-05-16T11:30:55Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 47,
+    "title": "[Docs]: Update README with latest UI screenshots and video demo",
+    "assignees": [
+      {
+        "login": "paruuup"
+      }
+    ],
+    "labels": [
+      {
+        "name": "documentation"
+      },
+      {
+        "name": "difficulty: medium"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level2"
+      }
+    ],
+    "createdAt": "2026-05-16T11:30:06Z",
+    "author": {
+      "login": "Aashikhandelwal05"
+    }
+  },
+  {
+    "number": 14,
+    "title": "[Feature]:  [GSSoC] Improve empty states and onboarding UX across dashboard modules",
+    "assignees": [
+      {
+        "login": "khushikumar124"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "help wanted"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "difficulty: medium"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level2"
+      }
+    ],
+    "createdAt": "2026-05-14T19:17:33Z",
+    "author": {
+      "login": "khushikumar124"
+    }
+  },
+  {
+    "number": 13,
+    "title": "Add Google OAuth 2.0 based authentication",
+    "assignees": [
+      {
+        "login": "abhyuday2006"
+      }
+    ],
+    "labels": [
+      {
+        "name": "enhancement"
+      },
+      {
+        "name": "frontend"
+      },
+      {
+        "name": "difficulty: hard"
+      },
+      {
+        "name": "backend"
+      },
+      {
+        "name": "gssoc"
+      },
+      {
+        "name": "level3"
+      }
+    ],
+    "createdAt": "2026-05-14T19:09:34Z",
+    "author": {
+      "login": "abhyuday2006"
+    }
+  }
+]
