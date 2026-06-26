@@ -511,6 +511,22 @@ class PaginatedMockAttempts(BaseModel):
     offset: int
 
 
+class PaginatedInterviewSessions(BaseModel):
+    items: list[InterviewSession]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+
+class PaginatedJobApplications(BaseModel):
+    items: list[JobApplication]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+
 JobStatus = Literal["Applied", "Screening", "Interview", "Offer", "Rejected", "Ghosted"]
 
 
@@ -1135,59 +1151,12 @@ async def generate_session_payload(
 
 def _significant_tokens(text: str) -> set[str]:
     stopwords = {
-        "the",
-        "and",
-        "a",
-        "an",
-        "of",
-        "to",
-        "is",
-        "are",
-        "in",
-        "for",
-        "on",
-        "with",
-        "that",
-        "this",
-        "it",
-        "as",
-        "at",
-        "by",
-        "from",
-        "be",
-        "or",
-        "not",
-        "have",
-        "has",
-        "was",
-        "were",
-        "will",
-        "can",
-        "i",
-        "you",
-        "your",
-        "we",
-        "our",
-        "they",
-        "their",
-        "what",
-        "which",
-        "when",
-        "where",
-        "why",
-        "how",
-        "do",
-        "does",
-        "did",
-        "so",
-        "but",
-        "if",
-        "then",
-        "because",
-        "there",
-        "these",
-        "those",
-        "meaning",
+        "the", "and", "a", "an", "of", "to", "is", "are", "in", "for", "on",
+        "with", "that", "this", "it", "as", "at", "by", "from", "be", "or",
+        "not", "have", "has", "was", "were", "will", "can", "i", "you", "your",
+        "we", "our", "they", "their", "what", "which", "when", "where", "why",
+        "how", "do", "does", "did", "so", "but", "if", "then", "because",
+        "there", "these", "those", "meaning",
     }
     return {
         token.lower()
@@ -1197,33 +1166,11 @@ def _significant_tokens(text: str) -> set[str]:
 
 
 FALLBACK_TECHNICAL_TERMS = {
-    "model",
-    "data",
-    "training",
-    "test",
-    "accuracy",
-    "performance",
-    "generalize",
-    "generalization",
-    "variance",
-    "bias",
-    "overfit",
-    "overfitting",
-    "unseen",
-    "feature",
-    "dataset",
-    "classification",
-    "regression",
-    "optimization",
-    "neural",
-    "network",
-    "algorithm",
-    "prediction",
-    "validation",
-    "loss",
-    "error",
-    "regularization",
-    "parameter",
+    "model", "data", "training", "test", "accuracy", "performance", "generalize",
+    "generalization", "variance", "bias", "overfit", "overfitting", "unseen",
+    "feature", "dataset", "classification", "regression", "optimization", "neural",
+    "network", "algorithm", "prediction", "validation", "loss", "error",
+    "regularization", "parameter",
 }
 
 
@@ -1830,18 +1777,33 @@ def save_profile(
     return profile
 
 
-@app.get("/api/users/{user_id}/sessions", response_model=list[InterviewSession])
+@app.get("/api/users/{user_id}/sessions", response_model=PaginatedInterviewSessions)
 def get_sessions(
     user_id: str,
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(default=20, ge=1, le=100, description="Results per page (1-100)"),
     _: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
-) -> list[InterviewSession]:
+) -> PaginatedInterviewSessions:
+    offset = (page - 1) * limit
+    total = db.execute(
+        select(func.count()).select_from(InterviewSessionTable)
+        .where(InterviewSessionTable.user_id == user_id)
+    ).scalar_one()
     rows = db.execute(
         select(InterviewSessionTable)
         .where(InterviewSessionTable.user_id == user_id)
         .order_by(InterviewSessionTable.created_at.asc())
-    ).scalars()
-    return [session_from_table(row) for row in rows]
+        .limit(limit)
+        .offset(offset)
+    ).scalars().all()
+    return PaginatedInterviewSessions(
+        items=[session_from_table(row) for row in rows],
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=(total + limit - 1) // limit,
+    )
 
 
 @app.get("/api/users/{user_id}/sessions/{session_id}", response_model=InterviewSession)
@@ -2038,21 +2000,33 @@ async def create_mock_attempt(
     return mock_from_table(row)
 
 
-@app.get("/api/users/{user_id}/jobs", response_model=list[JobApplication])
+@app.get("/api/users/{user_id}/jobs", response_model=PaginatedJobApplications)
 def get_jobs(
     user_id: str,
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(default=20, ge=1, le=100, description="Results per page (1-100)"),
     _: UserTable = Depends(require_current_user),
     db: Session = Depends(get_db),
-) -> list[JobApplication]:
+) -> PaginatedJobApplications:
+    offset = (page - 1) * limit
+    total = db.execute(
+        select(func.count()).select_from(JobApplicationTable)
+        .where(JobApplicationTable.user_id == user_id)
+    ).scalar_one()
     rows = db.execute(
         select(JobApplicationTable)
         .where(JobApplicationTable.user_id == user_id)
-        .order_by(
-            JobApplicationTable.sort_order.asc(), JobApplicationTable.created_at.asc()
-        )
-    ).scalars()
-    return [job_from_table(row) for row in rows]
-
+.order_by(JobApplicationTable.sort_order.asc(), JobApplicationTable.created_at.asc())
+        .limit(limit)
+        .offset(offset)
+    ).scalars().all()
+    return PaginatedJobApplications(
+        items=[job_from_table(row) for row in rows],
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=(total + limit - 1) // limit,
+    )
 
 @app.post(
     "/api/users/{user_id}/jobs",

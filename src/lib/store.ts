@@ -138,6 +138,22 @@ export interface JobApplication {
   updatedAt: string;
 }
 
+export interface PaginatedJobApplications {
+  items: JobApplication[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+export interface PaginatedInterviewSessions {
+  items: InterviewSession[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
 export interface CreateInterviewSessionInput {
   jobTitle: string;
   company: string;
@@ -179,6 +195,14 @@ function setSession(session: AuthSession | null) {
 // Legacy useProtectedResource hook removed in favor of TanStack React Query.
 
 export function getMockAttemptItems(payload: MockAttempt[] | PaginatedMockAttempts): MockAttempt[] {
+  return Array.isArray(payload) ? payload : payload.items;
+}
+
+export function getJobApplicationItems(payload: JobApplication[] | PaginatedJobApplications): JobApplication[] {
+  return Array.isArray(payload) ? payload : payload.items;
+}
+
+export function getInterviewSessionItems(payload: InterviewSession[] | PaginatedInterviewSessions): InterviewSession[] {
   return Array.isArray(payload) ? payload : payload.items;
 }
 
@@ -303,7 +327,10 @@ export function useInterviewSessions(userId: string | undefined) {
   const queryClient = useQueryClient();
   const sessionsQuery = useQuery<InterviewSession[]>({
     queryKey: ["interviewSessions", userId],
-    queryFn: () => apiRequest<InterviewSession[]>(`/api/users/${userId}/sessions`),
+    queryFn: async () => {
+      const payload = await apiRequest<InterviewSession[] | PaginatedInterviewSessions>(`/api/users/${userId}/sessions`);
+      return getInterviewSessionItems(payload);
+    },
     enabled: !!userId,
   });
 
@@ -389,7 +416,10 @@ export function useJobApplications(userId: string | undefined) {
   const queryClient = useQueryClient();
   const jobsQuery = useQuery<JobApplication[]>({
     queryKey: ["jobApplications", userId],
-    queryFn: () => apiRequest<JobApplication[]>(`/api/users/${userId}/jobs`),
+    queryFn: async () => {
+      const payload = await apiRequest<JobApplication[] | PaginatedJobApplications>(`/api/users/${userId}/jobs`);
+      return getJobApplicationItems(payload);
+    },
     enabled: !!userId,
   });
 
@@ -446,4 +476,3 @@ export function useJobApplications(userId: string | undefined) {
   const jobs = jobsQuery.data ?? [];
   return { jobs, addJob, updateJob, deleteJob, jobsError: jobsQuery.error instanceof Error ? jobsQuery.error.message : null, jobsLoading: jobsQuery.isLoading };
 }
-

@@ -381,7 +381,12 @@ class PrepIQApiTestCase(unittest.TestCase):
 
         jobs = self.client.get(f"/api/users/{user_id}/jobs", headers=headers)
         self.assertEqual(jobs.status_code, 200, jobs.text)
-        self.assertEqual(jobs.json(), [])
+        jobs_payload = jobs.json()
+        self.assertEqual(jobs_payload["items"], [])
+        self.assertEqual(jobs_payload["total"], 0)
+        self.assertEqual(jobs_payload["page"], 1)
+        self.assertEqual(jobs_payload["limit"], 20)
+        self.assertEqual(jobs_payload["total_pages"], 0)
 
         delete_session = self.client.delete(
             f"/api/users/{user_id}/sessions/{session_payload['id']}",
@@ -391,7 +396,12 @@ class PrepIQApiTestCase(unittest.TestCase):
 
         sessions = self.client.get(f"/api/users/{user_id}/sessions", headers=headers)
         self.assertEqual(sessions.status_code, 200, sessions.text)
-        self.assertEqual(sessions.json(), [])
+        sessions_payload = sessions.json()
+        self.assertEqual(sessions_payload["items"], [])
+        self.assertEqual(sessions_payload["total"], 0)
+        self.assertEqual(sessions_payload["page"], 1)
+        self.assertEqual(sessions_payload["limit"], 20)
+        self.assertEqual(sessions_payload["total_pages"], 0)
 
         mocks_after_delete = self.client.get(
             f"/api/users/{user_id}/mocks", headers=headers
