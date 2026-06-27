@@ -16,6 +16,8 @@ import {
   ChevronRight,
   Search,
   X,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -372,6 +374,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [form, setForm] = useState({ companyName: "", jobTitle: "", jobUrl: "", status: "Applied" as Status });
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -416,7 +419,6 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
   };
 
   // Optimistic jobs state for DnD
-  const [jobRoleOpen, setJobRoleOpen] = useState(false);
   const [localJobs, setLocalJobs] = useState<JobApplication[]>(jobs);
   const localJobsRef = useRef(jobs);
   const [activeJob, setActiveJob] = useState<JobApplication | null>(null);
@@ -430,7 +432,8 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
     const matchesSearch =
       !term ||
       j.companyName.toLowerCase().includes(term) ||
-      j.jobTitle.toLowerCase().includes(term);
+      j.jobTitle.toLowerCase().includes(term) ||
+      (j.location && j.location.toLowerCase().includes(term));
     const matchesStatus = statusFilter === "All" || j.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -675,16 +678,15 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Search bar (issue #188) */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative w-48 sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
-                id="job-tracker-search"
-                placeholder="Search company or role…"
+                type="text"
+                placeholder="Search jobs or companies..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 h-8 w-44 text-xs bg-secondary border-border"
+                className="pl-9 h-9 bg-secondary/50 border-border text-sm"
               />
               {searchTerm && (
                 <button
@@ -692,34 +694,29 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   aria-label="Clear search"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
-            {/* Status filter */}
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status | "All")}>
-              <SelectTrigger id="job-tracker-status-filter" className="h-8 w-32 text-xs bg-secondary border-border">
-                <SelectValue />
+              <SelectTrigger className="w-32 h-9 bg-secondary/50 border-border text-sm">
+                <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="All">All statuses</SelectItem>
-                {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                <SelectItem value="All">All Statuses</SelectItem>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            {hasActiveFilter && (
-              <button
-                onClick={() => { setSearchTerm(""); setStatusFilter("All"); }}
-                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                aria-label="Clear all filters"
-              >
-                Clear
-              </button>
-            )}
-            <div className="flex bg-secondary rounded-lg p-0.5">
-              <button onClick={() => setView("kanban")} className={`px-3 py-1.5 rounded-md text-sm transition-colors ${view === "kanban" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+
+            <div className="flex bg-secondary rounded-lg p-0.5 h-9 items-center">
+              <button onClick={() => setView("kanban")} className={`px-3 py-1.5 rounded-md text-sm transition-colors h-8 ${view === "kanban" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
                 <LayoutGrid className="w-4 h-4" />
               </button>
-              <button onClick={() => setView("table")} className={`px-3 py-1.5 rounded-md text-sm transition-colors ${view === "table" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+              <button onClick={() => setView("table")} className={`px-3 py-1.5 rounded-md text-sm transition-colors h-8 ${view === "table" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
                 <TableIcon className="w-4 h-4" />
               </button>
             </div>
@@ -1090,7 +1087,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
                 {filteredJobs.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-12 text-center text-muted-foreground">
-                      {hasActiveFilter ? "No applications match your filters" : "No applications yet"}
+                      {hasActiveFilter ? "No matching applications found" : "No applications tracked yet"}
                     </td>
                   </tr>
                 ) : (
@@ -1135,7 +1132,7 @@ export default function JobTrackerPage({ jobs, sessions, onAddJob, onUpdateJob, 
         </div>
       )}
 
-      {localJobs.length === 0 && (
+      {localJobs.length === 0 && !hasActiveFilter && (
         <div className="bg-card border border-border rounded-2xl p-12 text-center shadow-card">
           <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-foreground mb-1">No applications tracked</h3>

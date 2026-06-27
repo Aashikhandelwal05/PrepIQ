@@ -196,7 +196,9 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
     setGraduationYear(profile.graduationYear);
     setCoursework(profile.coursework);
     setCertifications(profile.certifications);
-    setWorkHistory(profile.workHistory.length > 0 ? profile.workHistory : [emptyWorkEntry()]);
+    const fresher = profile.workHistory.length === 0;
+    setIsFresher(fresher);
+    setWorkHistory(fresher ? [] : (profile.workHistory.length > 0 ? profile.workHistory : [emptyWorkEntry()]));
     setTechnicalSkills(profile.technicalSkills);
     setSoftSkills(profile.softSkills);
     setFears(profile.interviewFears);
@@ -446,12 +448,18 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
 
               {step === 2 && (
                 <>
-                  {/* Fresher toggle (issue #61) */}
                   <div className="flex items-start gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20">
                     <Checkbox
                       id="is-fresher-toggle"
                       checked={isFresher}
-                      onCheckedChange={(checked) => setIsFresher(!!checked)}
+                      onCheckedChange={(checked) => {
+                        setIsFresher(!!checked);
+                        if (checked) {
+                          setWorkHistory([]);
+                        } else {
+                          setWorkHistory([emptyWorkEntry()]);
+                        }
+                      }}
                       className="mt-0.5"
                     />
                     <div>

@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, Loader2, Search, Brain, Cpu, Upload, Trash2 } from "lucide-react";
+import { BookOpen, Loader2, Search, Brain, Cpu, Upload, Trash2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -184,6 +184,50 @@ export default function InterviewPrepPage({
     Low: "text-success",
     Medium: "text-warning",
     High: "text-destructive",
+  };
+
+  const RESOURCE_MAPPING: Record<string, { label: string; url: string }> = {
+    React: { label: "React Docs", url: "https://react.dev/" },
+    "React.js": { label: "React Docs", url: "https://react.dev/" },
+    Python: { label: "Python Docs", url: "https://docs.python.org/3/" },
+    "Python Docs": { label: "Python Docs", url: "https://docs.python.org/3/" },
+    SQL: { label: "SQL MDN", url: "https://developer.mozilla.org/en-US/docs/Glossary/SQL" },
+    JavaScript: { label: "MDN JS", url: "https://developer.mozilla.org/en-US/docs/Web/JavaScript" },
+    MDN: { label: "MDN Web Docs", url: "https://developer.mozilla.org/en-US/" },
+    "System Design": { label: "System Design Primer", url: "https://github.com/donnemartin/system-design-primer" },
+    TypeScript: { label: "TypeScript Docs", url: "https://www.typescriptlang.org/docs/" },
+    Docker: { label: "Docker Docs", url: "https://docs.docker.com/" },
+    Kubernetes: { label: "Kubernetes Docs", url: "https://kubernetes.io/docs/home/" },
+    AWS: { label: "AWS Docs", url: "https://docs.aws.amazon.com/" },
+    "Node.js": { label: "Node.js Docs", url: "https://nodejs.org/docs/" },
+    FastAPI: { label: "FastAPI Docs", url: "https://fastapi.tiangolo.com/" },
+    Go: { label: "Go Docs", url: "https://go.dev/doc/" },
+    Java: { label: "Java Docs", url: "https://docs.oracle.com/en/java/" },
+    "C++": { label: "C++ Reference", url: "https://en.cppreference.com/w/" },
+    "C#": { label: "C# Docs", url: "https://learn.microsoft.com/en-us/dotnet/csharp/" },
+    Spring: { label: "Spring Docs", url: "https://spring.io/projects/spring-framework" },
+    Django: { label: "Django Docs", url: "https://docs.djangoproject.com/" },
+    Flask: { label: "Flask Docs", url: "https://flask.palletsprojects.com/" },
+    Redux: { label: "Redux Docs", url: "https://redux.js.org/" },
+    GraphQL: { label: "GraphQL Docs", url: "https://graphql.org/learn/" },
+    Tailwind: { label: "Tailwind Docs", url: "https://tailwindcss.com/docs" },
+    CSS: { label: "MDN CSS", url: "https://developer.mozilla.org/en-US/docs/Web/CSS" },
+    HTML: { label: "MDN HTML", url: "https://developer.mozilla.org/en-US/docs/Web/HTML" },
+    Testing: { label: "Testing Library", url: "https://testing-library.com/docs/" },
+    "CI/CD": { label: "CI/CD Guide", url: "https://resources.github.com/ci-cd/" },
+    Git: { label: "Git Docs", url: "https://git-scm.com/doc" },
+    PostgreSQL: { label: "PostgreSQL Docs", url: "https://www.postgresql.org/docs/" },
+    MongoDB: { label: "MongoDB Docs", url: "https://www.mongodb.com/docs/" },
+    Redis: { label: "Redis Docs", url: "https://redis.io/docs/" },
+  };
+
+  const [expandedGaps, setExpandedGaps] = useState<Record<number, boolean>>({});
+
+  const toggleGap = (idx: number) => {
+    setExpandedGaps((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
   };
 
   const filteredQuestions = activeSession?.questionBank.filter((q) => {
@@ -384,7 +428,7 @@ export default function InterviewPrepPage({
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="text-left py-3 text-muted-foreground font-medium">Skill</th>
+                        <th className="text-left py-3 text-muted-foreground font-medium pl-4">Skill</th>
                         <th className="text-left py-3 text-muted-foreground font-medium">
                           {activeSession.isEstimated && !activeSession.resumeText && !activeSession.jdText
                             ? "You Have (Estimated)"
@@ -392,17 +436,76 @@ export default function InterviewPrepPage({
                         </th>
                         <th className="text-left py-3 text-muted-foreground font-medium">They Need</th>
                         <th className="text-left py-3 text-muted-foreground font-medium">Gap Level</th>
+                        <th className="w-10"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {activeSession.gapAnalysis.map((g) => (
-                        <tr key={g.skill} className="border-b border-border/50">
-                          <td className="py-3 font-medium text-foreground">{g.skill}</td>
-                          <td className="py-3 text-muted-foreground">{g.have}</td>
-                          <td className="py-3 text-muted-foreground">{g.need}</td>
-                          <td className={`py-3 font-medium ${gapColor[g.gapLevel]}`}>{g.gapLevel}</td>
-                        </tr>
-                      ))}
+                      {activeSession.gapAnalysis.map((g, idx) => {
+                        const isExpanded = !!expandedGaps[idx];
+                        return (
+                          <Fragment key={idx}>
+                            <tr
+                              onClick={() => toggleGap(idx)}
+                              className="border-b border-border/50 hover:bg-secondary/20 transition-colors group cursor-pointer"
+                            >
+                              <td className="py-4 pl-4 font-medium text-foreground">
+                                <div className="flex items-center gap-2">
+                                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                                  {g.skill}
+                                </div>
+                              </td>
+                              <td className="py-4 text-muted-foreground">{g.have}</td>
+                              <td className="py-4 text-muted-foreground">{g.need}</td>
+                              <td className={`py-4 font-medium ${gapColor[g.gapLevel]}`}>{g.gapLevel}</td>
+                              <td className="py-4 pr-4"></td>
+                            </tr>
+                            {isExpanded && (
+                              <tr>
+                                <td colSpan={5} className="p-0">
+                                  <div className="bg-secondary/30 p-4 rounded-b-xl border-x border-b border-border/50 mx-2 mb-2">
+                                    <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Recommended Learning Resources</h4>
+                                    <div className="flex flex-wrap gap-3">
+                                      {g.resources && g.resources.length > 0 ? (
+                                        g.resources.map((resKey, rIdx) => {
+                                          const resource = RESOURCE_MAPPING[resKey];
+                                          if (resource) {
+                                            return (
+                                              <a
+                                                key={rIdx}
+                                                href={resource.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border border-border hover:border-primary/50 text-sm text-primary transition-all shadow-sm"
+                                              >
+                                                <BookOpen className="w-3.5 h-3.5" />
+                                                {resource.label}
+                                              </a>
+                                            );
+                                          }
+                                          return (
+                                            <a
+                                              key={rIdx}
+                                              href={`https://www.google.com/search?q=${encodeURIComponent(resKey + " documentation")}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border border-border hover:border-primary/50 text-sm text-primary transition-all shadow-sm"
+                                            >
+                                              <Search className="w-3.5 h-3.5" />
+                                              {resKey}
+                                            </a>
+                                          );
+                                        })
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground italic">No specific resources found. Try searching for "{g.skill} docs".</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

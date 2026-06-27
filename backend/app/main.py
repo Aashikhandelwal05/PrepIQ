@@ -420,6 +420,7 @@ class GapItem(BaseModel):
     have: str
     need: str
     gapLevel: Literal["Low", "Medium", "High"]
+    resources: list[str] = Field(default_factory=list)
 
 
 class QuestionItem(BaseModel):
@@ -960,11 +961,12 @@ async def generate_session_payload(
                 "You generate structured interview preparation data. "
                 "Return valid JSON only. Do not include markdown or explanations. "
                 "Use exactly this schema: "
-                '{"gapAnalysis":[{"skill":"string","have":"string","need":"string","gapLevel":"Low|Medium|High"}],'
+                '{"gapAnalysis":[{"skill":"string","have":"string","need":"string","gapLevel":"Low|Medium|High","resources":["string"]}],'
                 '"readinessScore":0,'
                 '"questionBank":[{"question":"string","type":"behavioral|technical|situational","difficulty":"easy|medium|hard","tip":"string"}],'
                 '"roadmap":[{"day":1,"focusArea":"string","tasks":["string"]}]}. '
-                "gapAnalysis must be an array with 3 to 5 items. "
+                "gapAnalysis must be an array with 3 to 5 items. For each gapAnalysis item, "
+                "include 2-3 resource keywords (e.g., 'React', 'MDN', 'System Design', 'Python Docs'). "
                 "questionBank must be an array with 6 to 10 items. "
                 f"roadmap must be an array with exactly {target_days} days."
             ),
@@ -1002,6 +1004,7 @@ async def generate_session_payload(
             "have": ["have", "current"],
             "need": ["need", "required"],
             "gapLevel": ["gaplevel", "level", "gap"],
+            "resources": ["resources", "links", "keywords"],
         }
         q_mapping = {
             "question": ["question", "text"],
@@ -1016,11 +1019,13 @@ async def generate_session_payload(
         }
 
         raw_gap = norm_res.get("gapanalysis", [])
-        gap_analysis = [
-            GapItem(**norm_dict(item, gap_mapping))
-            for item in raw_gap
-            if isinstance(item, dict)
-        ]
+        gap_analysis = []
+        for item in raw_gap:
+            if isinstance(item, dict):
+                normed = norm_dict(item, gap_mapping)
+                if normed.get("resources") is None:
+                    normed["resources"] = []
+                gap_analysis.append(GapItem(**normed))
 
         readiness_val = norm_res.get("readinessscore", norm_res.get("readiness", 50))
         readiness = max(0, min(100, int(readiness_val)))
@@ -1053,12 +1058,40 @@ async def generate_session_payload(
     scores = compute_match_score(resume_text, jd_text)
     readiness = scores["overallScore"]
     gap_analysis = [
-        GapItem(skill="React", have="Intermediate", need="Advanced", gapLevel="Medium"),
-        GapItem(skill="System Design", have="Basic", need="Advanced", gapLevel="High"),
-        GapItem(skill="TypeScript", have="Advanced", need="Advanced", gapLevel="Low"),
-        GapItem(skill="CI/CD", have="Basic", need="Intermediate", gapLevel="Medium"),
         GapItem(
-            skill="Testing", have="Intermediate", need="Advanced", gapLevel="Medium"
+            skill="React",
+            have="Intermediate",
+            need="Advanced",
+            gapLevel="Medium",
+            resources=["React", "MDN"],
+        ),
+        GapItem(
+            skill="System Design",
+            have="Basic",
+            need="Advanced",
+            gapLevel="High",
+            resources=["System Design", "MDN"],
+        ),
+        GapItem(
+            skill="TypeScript",
+            have="Advanced",
+            need="Advanced",
+            gapLevel="Low",
+            resources=["TypeScript", "MDN"],
+        ),
+        GapItem(
+            skill="CI/CD",
+            have="Basic",
+            need="Intermediate",
+            gapLevel="Medium",
+            resources=["CI/CD", "Docker"],
+        ),
+        GapItem(
+            skill="Testing",
+            have="Intermediate",
+            need="Advanced",
+            gapLevel="Medium",
+            resources=["Testing", "MDN"],
         ),
     ]
     question_bank = [

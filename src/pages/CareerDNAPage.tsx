@@ -82,13 +82,17 @@ export default function CareerDNAPage({ user, profile }: CareerDNAPageProps) {
 
         <Section title="Work History">
           <div className="space-y-3">
-            {profile.workHistory.filter((w) => w.jobTitle).map((w) => (
-              <div key={w.id} className="p-3 rounded-lg bg-secondary/30">
-                <p className="text-sm font-medium text-foreground">{w.jobTitle} at {w.company}</p>
-                <p className="text-xs text-muted-foreground">{w.from} — {w.to}</p>
-                {w.responsibilities && <p className="text-xs text-muted-foreground mt-1">{w.responsibilities}</p>}
-              </div>
-            ))}
+            {profile.workHistory.filter((w) => w.jobTitle).length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">No work experience listed (Fresher)</p>
+            ) : (
+              profile.workHistory.filter((w) => w.jobTitle).map((w) => (
+                <div key={w.id} className="p-3 rounded-lg bg-secondary/30">
+                  <p className="text-sm font-medium text-foreground">{w.jobTitle} at {w.company}</p>
+                  <p className="text-xs text-muted-foreground">{w.from} — {w.to}</p>
+                  {w.responsibilities && <p className="text-xs text-muted-foreground mt-1">{w.responsibilities}</p>}
+                </div>
+              ))
+            )}
           </div>
         </Section>
 
