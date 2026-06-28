@@ -63,7 +63,7 @@ const PREDEFINED_TECH_SKILLS = [
   "Cybersecurity", "Ethical Hacking", "Network Security", "Penetration Testing"
 ].sort();
 
-const SearchableMultiSelect = ({ options, selected, onChange, placeholder }: { options: string[], selected: string[], onChange: (val: string[]) => void, placeholder: string }) => {
+const SearchableMultiSelect = ({ options, selected, onChange, placeholder, onBlur}: { options: string[], selected: string[], onChange: (val: string[]) => void, placeholder: string, onBlur?: () => void;}) => {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -81,7 +81,10 @@ const SearchableMultiSelect = ({ options, selected, onChange, placeholder }: { o
           setIsOpen(true);
         }}
         onFocus={() => setIsOpen(true)}
-        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+        onBlur={() => {
+          onBlur?.();
+          setTimeout(() => setIsOpen(false), 200);
+        }}
         placeholder={placeholder}
         className="bg-secondary/50 mt-1"
       />
@@ -129,12 +132,12 @@ const SearchableMultiSelect = ({ options, selected, onChange, placeholder }: { o
   );
 };
 
-const SearchableInput = ({ value, onChange, options, placeholder, className }: { value: string, onChange: (val: string) => void, options: string[], placeholder?: string, className?: string }) => {
+const SearchableInput = ({ value, onChange, options, placeholder, className, onBlur }: { value: string, onChange: (val: string) => void, options: string[], placeholder?: string, onBlur?: () => void; className?: string }) => {
   const [isOpen, setIsOpen] = useState(false);
   const filteredOptions = value ? options.filter(opt => opt.toLowerCase().includes(value.toLowerCase()) && opt !== value).slice(0, 10) : [];
   return (
     <div className="relative w-full">
-      <Input value={value} onChange={(e) => { onChange(e.target.value); setIsOpen(true); }} onFocus={() => setIsOpen(true)} onBlur={() => setTimeout(() => setIsOpen(false), 200)} placeholder={placeholder} className={className} />
+      <Input value={value} onChange={(e) => { onChange(e.target.value); setIsOpen(true); }} onFocus={() => setIsOpen(true)} onBlur={() => {onBlur?.();setTimeout(() => setIsOpen(false), 200);}} placeholder={placeholder} className={className} />
       <AnimatePresence>
         {isOpen && filteredOptions.length > 0 && (
           <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.15 }} className="absolute z-50 w-full mt-1 max-h-60 overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md outline-none">
@@ -183,6 +186,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
   const [softSkills, setSoftSkills] = useState<string[]>([]);
   const [fears, setFears] = useState<string[]>([]);
   const [fearNotes, setFearNotes] = useState("");
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!profile) {
@@ -210,6 +214,13 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
     ]);
   };
 
+  const markTouched = (field: string) => {
+    setTouched(prev => ({
+        ...prev,
+        [field]: true,
+    }));
+  };
+
   const removeWorkEntry = (id: string) => {
     if (workHistory.length > 1) setWorkHistory(workHistory.filter((w) => w.id !== id));
   };
@@ -217,25 +228,66 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
   const updateWork = (id: string, field: keyof WorkEntry, value: string) => {
     setWorkHistory(workHistory.map((w) => (w.id === id ? { ...w, [field]: value } : w)));
   };
+  const validateDegree = () => {
+    if (!degree.trim()) return "Degree is required.";
+    return "";
+  };
+
+  const validateInstitution = () => {
+    if (!institution.trim()) return "Institution is required.";
+    return "";
+  };
+
+  const validateGraduationYear = () => {
+    if (!graduationYear.trim())
+      return "Graduation year is required.";
+
+    const year = parseInt(graduationYear, 10);
+
+    if (isNaN(year) || year < 1950 || year > 2030)
+      return "Enter a valid graduation year between 1950 and 2030.";
+
+    return "";
+  };
+
+  const validateTargetRoles = () => {
+  if (targetRoles.length === 0)
+    return "Select at least one target role.";
+
+  return "";
+  };
+
+  const validateDreamCompanies = () => {
+    if (dreamCompanies.length === 0)
+      return "Select at least one dream company.";
+
+    return "";
+  };
+
+  const validateTechnicalSkills = () => {
+    if (technicalSkills.length === 0) {
+      return "Add at least one technical skill.";
+    }
+    return "";
+  };
+
+  const validateSoftSkills = () => {
+    if (softSkills.length === 0) {
+      return "Add at least one soft skill.";
+    }
+    return "";
+  };
 
   const validateStep = (currentStep: number): string | null => {
     switch (currentStep) {
       case 0:
-        if (targetRoles.length === 0)
-          return "Add at least one target job role to continue.";
-        if (dreamCompanies.length === 0)
-          return "Add at least one dream company to continue.";
+        if (validateTargetRoles()) return validateTargetRoles();
+        if (validateDreamCompanies()) return validateDreamCompanies();
         return null;
       case 1: {
-        if (!degree.trim())
-          return "Please enter your degree.";
-        if (!institution.trim())
-          return "Please enter your institution.";
-        if (!graduationYear.trim())
-          return "Please enter your graduation year.";
-        const year = parseInt(graduationYear, 10);
-        if (isNaN(year) || year < 1950 || year > 2030)
-          return "Please enter a valid graduation year between 1950 and 2030.";
+        if (validateDegree()) return validateDegree();
+        if (validateInstitution()) return validateInstitution();
+        if (validateGraduationYear()) return validateGraduationYear();
 
         return null;
       }
@@ -300,15 +352,50 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
         return null;
       }
       case 3:
-        if (technicalSkills.length === 0 && softSkills.length === 0)
-          return "Add at least one technical or soft skill to continue.";
+        if (validateSkills())
+            return validateSkills();
         return null;
       default:
         return null;
     }
   };
 
+  const markCurrentStepTouched = () => {
+    switch (step) {
+        case 0:
+            setTouched(prev => ({
+                ...prev,
+                targetRoles: true,
+                dreamCompanies: true,
+            }));
+            break;
+        case 1:
+            setTouched(prev => ({
+                ...prev,
+                degree: true,
+                institution: true,
+                graduationYear: true,
+            }));
+            break;
+        case 2:
+            setTouched(prev => ({
+              ...prev,
+              workHistory: true,
+            }));
+            break;
+        case 3:
+            setTouched(prev => ({
+                ...prev,
+                skills: true,
+            }));
+            break;
+        default:
+            break;
+    }
+};
+
   const handleNext = () => {
+    markCurrentStepTouched();
     const error = validateStep(step);
     if (error) {
       toast({
@@ -318,12 +405,12 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
       });
       return;
     }
+    setTouched({});
     setStep(step + 1);
   };
 
-  const stepError = validateStep(step);
-
   const handleComplete = async () => {
+    markCurrentStepTouched();
     const finalStepError = validateStep(step);
     if (finalStepError) {
       toast({
@@ -331,9 +418,9 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
         description: finalStepError,
         variant: "destructive",
       });
+
       return;
     }
-
     const profile: CareerProfile = {
       userId: user.id,
       fullName: user.name,
@@ -407,12 +494,18 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                     <Input value={user.email} disabled className="mt-1 bg-secondary/50" />
                   </div>
                   <div>
-                    <Label>Target Job Roles</Label>
-                    <SearchableMultiSelect options={PREDEFINED_ROLES} selected={targetRoles} onChange={setTargetRoles} placeholder="Search for a role..." />
+                    <Label>Target Job Roles <span className="text-destructive">*</span></Label>
+                    <SearchableMultiSelect options={PREDEFINED_ROLES} selected={targetRoles} onChange={setTargetRoles} onBlur={() => markTouched("targetRoles")} placeholder="Search for a role..." />
+                    {touched.targetRoles && validateTargetRoles() && (
+                      <p className="text-destructive text-sm mt-1">{validateTargetRoles()}</p>
+                    )}
                   </div>
                   <div>
-                    <Label>Dream Companies</Label>
-                    <SearchableMultiSelect options={PREDEFINED_COMPANIES} selected={dreamCompanies} onChange={setDreamCompanies} placeholder="Search for a company..." />
+                    <Label>Dream Companies <span className="text-destructive">*</span></Label>
+                    <SearchableMultiSelect options={PREDEFINED_COMPANIES} selected={dreamCompanies} onChange={setDreamCompanies} onBlur={() => markTouched("dreamCompanies")} placeholder="Search for a company..." />
+                    {touched.dreamCompanies && validateDreamCompanies() && (
+                      <p className="text-destructive text-sm mt-1">{validateDreamCompanies()}</p>
+                    )}
                   </div>
                 </>
               )}
@@ -421,17 +514,28 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Degree</Label>
-                      <Input value={degree} onChange={(e) => setDegree(e.target.value)} className="mt-1 bg-secondary/50" />
+                      <Label>Degree <span className="text-destructive">*</span></Label>
+                      <Input value={degree} onChange={(e) => setDegree(e.target.value)} onBlur={() => markTouched("degree")} className="mt-1 bg-secondary/50" />
+                      {touched.degree && validateDegree() && (
+                        <p className="text-destructive text-sm mt-1">{validateDegree()}</p>
+                      )}
                     </div>
                     <div>
-                      <Label>Institution</Label>
-                      <Input value={institution} onChange={(e) => setInstitution(e.target.value)} className="mt-1 bg-secondary/50" />
+                      <Label>Institution <span className="text-destructive">*</span></Label>
+                      <Input value={institution} onChange={(e) => setInstitution(e.target.value)} onBlur={() => markTouched("institution")} className="mt-1 bg-secondary/50" />
+                      {touched.institution && validateInstitution() && (
+                        <p className="text-destructive text-sm mt-1">{validateInstitution()}</p>
+                      )}
                     </div>
                   </div>
                   <div>
-                    <Label>Graduation Year</Label>
-                    <Input type="number" min="1950" max="2030" value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} className="mt-1 bg-secondary/50" />
+                    <Label>Graduation Year <span className="text-destructive">*</span></Label>
+                    <Input type="number" min="1950" max="2030" value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} onBlur={() => markTouched("graduationYear")} className="mt-1 bg-secondary/50" />
+                      {touched.graduationYear && validateGraduationYear() && (
+                      <p className="text-destructive text-sm mt-1">
+                        {validateGraduationYear()}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label>Relevant Coursework</Label>
@@ -459,7 +563,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                         htmlFor="is-fresher-toggle"
                         className="text-sm font-medium text-foreground cursor-pointer"
                       >
-                        I am a Fresher / No prior work experience
+                        I am a Fresher / No prior work experience <span className="text-destructive">*</span>
                       </label>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Check this to skip the work experience section.
@@ -491,6 +595,9 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                       <Button variant="outline" onClick={addWorkEntry} className="w-full border-dashed">
                         <Plus className="w-4 h-4 mr-2" /> Add Experience
                       </Button>
+                      {touched.workHistory && validateStep(2) && (
+                        <p className="text-destructive text-sm mt-2">{validateStep(2)}</p>
+                      )}
                     </>
                   )}
                 </>
@@ -499,7 +606,7 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
               {step === 3 && (
                 <>
                   <div>
-                    <Label>Technical Skills</Label>
+                    <Label>Technical Skills <span className="text-destructive">*</span></Label>
                     <div className="mt-1 relative">
                       <Input
                         value={techQuery}
@@ -565,13 +672,21 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
                           <Button variant="ghost" size="sm" onClick={() => setTechnicalSkills(technicalSkills.filter((_, i) => i !== idx))}>
                             <Trash2 className="w-3 h-3 text-destructive" />
                           </Button>
+                          {touched.skills && validateTechnicalSkills() && (
+                            <p className="text-destructive text-sm mt-2">
+                              {validateTechnicalSkills()}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <Label>Soft Skills</Label>
+                    <Label>Soft Skills <span className="text-destructive">*</span></Label>
                     <SearchableMultiSelect options={PREDEFINED_SOFT_SKILLS} selected={softSkills} onChange={setSoftSkills} placeholder="Search for a soft skill..." />
+                      {touched.skills && validateSkills() && (
+                        <p className="text-destructive text-sm mt-2">{validateSkills()}</p>
+                      )}
                   </div>
                 </>
               )}
@@ -605,16 +720,6 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
           </AnimatePresence>
         </div>
 
-        {stepError && (
-          <p
-            role="alert"
-            aria-live="polite"
-            className="text-destructive text-sm mt-3"
-          >
-            {stepError}
-          </p>
-        )}
-
         <div className="flex justify-between mt-6">
           <Button
             variant="outline"
@@ -627,8 +732,6 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
           {step < STEPS.length - 1 ? (
             <Button
               onClick={handleNext}
-              disabled={stepError !== null}
-              title={stepError ?? undefined}
               className="gradient-primary text-primary-foreground"
             >
               Next <ChevronRight className="w-4 h-4 ml-1" />
@@ -636,8 +739,6 @@ export default function OnboardingPage({ user, profile, onSave }: OnboardingPage
           ) : (
             <Button
               onClick={handleComplete}
-              disabled={stepError !== null}
-              title={stepError ?? undefined}
               className="gradient-primary text-primary-foreground"
             >
               <Check className="w-4 h-4 mr-1" /> Complete
