@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -30,7 +30,7 @@ interface DashboardPageProps {
 
 const ONBOARDING_DISMISSED_KEY = "prepiq_onboarding_dismissed";
 
-export default function DashboardPage({ user, profile, sessions, mocks, jobs }: DashboardPageProps) {
+function DashboardPageComponent({ user, profile, sessions, mocks, jobs }: DashboardPageProps) {
   const navigate = useNavigate();
   const { data: streakData } = useStreak(user.id);
 
@@ -41,32 +41,36 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
     return false;
   });
 
-  const dismissOnboarding = () => {
+  const dismissOnboarding = useCallback(() => {
     setIsDismissed(true);
     if (typeof window !== "undefined") {
       localStorage.setItem(ONBOARDING_DISMISSED_KEY, "true");
     }
-  };
+  }, []);
 
-  const completionPercent = profile?.onboardingComplete ? 100 : 0;
-  const avgScore = mocks.length
-    ? Math.round(mocks.reduce((s, m) => s + m.aiScore, 0) / mocks.length)
-    : 0;
+  const { completionPercent, avgScore, steps, completedSteps, onboardingProgress, showOnboarding } = useMemo(() => {
+    const completionPercent = profile?.onboardingComplete ? 100 : 0;
+    const avgScore = mocks.length
+      ? Math.round(mocks.reduce((s, m) => s + m.aiScore, 0) / mocks.length)
+      : 0;
 
-  const steps = [
-    { id: 1, title: "Create your account", completed: true },
-    { id: 2, title: "Complete Career DNA profile", completed: !!profile?.onboardingComplete },
-    { id: 3, title: "Add your first job application", completed: jobs.length > 0 },
-    { id: 4, title: "Create your first prep session", completed: sessions.length > 0 },
-    { id: 5, title: "Complete your first mock interview", completed: mocks.length > 0 },
-  ];
+    const steps = [
+      { id: 1, title: "Create your account", completed: true },
+      { id: 2, title: "Complete Career DNA profile", completed: !!profile?.onboardingComplete },
+      { id: 3, title: "Add your first job application", completed: jobs.length > 0 },
+      { id: 4, title: "Create your first prep session", completed: sessions.length > 0 },
+      { id: 5, title: "Complete your first mock interview", completed: mocks.length > 0 },
+    ];
 
-  const completedSteps = steps.filter((s) => s.completed).length;
-  const onboardingProgress = (completedSteps / steps.length) * 100;
-  const showOnboarding = !isDismissed && completedSteps < steps.length;
+    const completedSteps = steps.filter((s) => s.completed).length;
+    const onboardingProgress = (completedSteps / steps.length) * 100;
+    const showOnboarding = !isDismissed && completedSteps < steps.length;
 
-  const recentSessions = sessions.slice(-3).reverse();
-  const recentJobs = jobs.slice(-3).reverse();
+    return { completionPercent, avgScore, steps, completedSteps, onboardingProgress, showOnboarding };
+  }, [profile?.onboardingComplete, mocks, jobs.length, sessions.length, isDismissed]);
+
+  const recentSessions = useMemo(() => sessions.slice(-3).reverse(), [sessions]);
+  const recentJobs = useMemo(() => jobs.slice(-3).reverse(), [jobs]);
 
   const statusColor: Record<string, string> = {
     Applied: "bg-primary/20 text-primary",
@@ -319,3 +323,5 @@ export default function DashboardPage({ user, profile, sessions, mocks, jobs }: 
     </div>
   );
 }
+
+export default DashboardPageComponent;
