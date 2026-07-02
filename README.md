@@ -152,6 +152,7 @@ For simple manual local development, use SQLite instead of the Docker-oriented P
 ```env
 DATABASE_URL=sqlite:///./backend/local.db
 APP_SECRET=any-long-random-string-only-for-local-dev
+CORS_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
 ```
 
 > ⚠️ Never commit a real `APP_SECRET`.
